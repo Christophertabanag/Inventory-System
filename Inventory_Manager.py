@@ -6,6 +6,38 @@ import random
 import barcode
 from barcode.writer import ImageWriter
 import io
+from github import Github
+
+# ---- Universal GitHub Excel Sync Function ----
+def push_all_excel_to_github():
+    token = st.secrets["GITHUB_TOKEN"]
+    repo_name = "Christophertabanag/Inventory-System"
+    g = Github(token)
+    repo = g.get_repo(repo_name)
+    excel_files = [f for f in os.listdir() if f.endswith('.xlsx')]
+    pushed_files = []
+    for file_path in excel_files:
+        with open(file_path, "rb") as f:
+            content = f.read()
+        commit_message = f"Update {file_path} from Streamlit app"
+        try:
+            contents = repo.get_contents(file_path)
+            repo.update_file(
+                path=file_path,
+                message=commit_message,
+                content=content,
+                sha=contents.sha,
+                branch="main"
+            )
+        except Exception:
+            repo.create_file(
+                path=file_path,
+                message=commit_message,
+                content=content,
+                branch="main"
+            )
+        pushed_files.append(file_path)
+    st.success(f"Pushed to GitHub: {', '.join(pushed_files)}")
 
 INVENTORY_FILE = os.path.join(os.path.dirname(__file__), "inventory.xlsx")
 st.set_page_config(page_title="Inventory Manager", layout="wide")
@@ -251,7 +283,6 @@ with st.expander("➕ Add a New Product", expanded=st.session_state["add_product
                     default_tax = smart_suggestion if smart_suggestion in TAXPC_OPTIONS else TAXPC_OPTIONS[9]
                     input_values[header] = st.selectbox(header, TAXPC_OPTIONS, index=max(0, TAXPC_OPTIONS.index(default_tax)), key=unique_key)
                 elif header.upper() == "AVAIL FROM":
-                    # Safe date handling for initial value
                     try:
                         if pd.isnull(smart_suggestion) or smart_suggestion == "":
                             date_val = datetime.now().date()
@@ -296,6 +327,7 @@ with st.expander("➕ Add a New Product", expanded=st.session_state["add_product
                     new_row["Timestamp"] = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
                 df = pd.concat([df, pd.DataFrame([new_row])], ignore_index=True)
                 df.to_excel(INVENTORY_FILE, index=False)
+                push_all_excel_to_github()  # ---- Sync after every add ----
                 st.success(f"Product added successfully!")
                 st.session_state["barcode"] = ""
                 st.session_state["framecode"] = ""
@@ -304,17 +336,12 @@ with st.expander("➕ Add a New Product", expanded=st.session_state["add_product
 
 st.markdown('### Current Inventory')
 
-# --- FIX: Convert problematic columns to string before displaying ---
-for col in [framecode_col, barcode_col]:
-    if col in df.columns:
-        df[col] = df[col].astype(str)
-        
 # --- FIX: Convert all object columns to strings before displaying ---
 for col in df.columns:
     if df[col].dtype == 'object':
         df[col] = df[col].astype(str)
-        
-st.dataframe(df, width='stretch')  # Replaces use_container_width
+
+st.dataframe(df, width='stretch')
 
 with st.expander("✏️ Edit or 🗑 Delete Products", expanded=st.session_state["edit_delete_expanded"]):
     if len(df) > 0:
@@ -414,6 +441,7 @@ with st.expander("✏️ Edit or 🗑 Delete Products", expanded=st.session_stat
                         if "Timestamp" in df.columns:
                             df.at[selected_row, "Timestamp"] = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
                         df.to_excel(INVENTORY_FILE, index=False)
+                        push_all_excel_to_github()  # ---- Sync after every edit ----
                         st.success("Product updated successfully!")
                         st.session_state["edit_delete_expanded"] = True
                         st.rerun()
@@ -430,6 +458,7 @@ if st.session_state.get("pending_delete_index") is not None:
         if st.button("Confirm Delete", key="confirm_delete_btn"):
             df = df.drop(st.session_state["pending_delete_index"]).reset_index(drop=True)
             df.to_excel(INVENTORY_FILE, index=False)
+            push_all_excel_to_github()  # ---- Sync after every delete ----
             st.success("Product deleted successfully!")
             st.session_state["edit_product_index"] = None
             st.session_state["edit_delete_expanded"] = True
@@ -465,7 +494,7 @@ with st.expander("📦 Stock Count"):
                 if "barcode" in col.lower() or "ean" in col.lower() or "upc" in col.lower() or "code" in col.lower()
             ]
             if not barcode_candidates:
-                barcode_candidates = scanned_df.columns.tolist()  # fallback to all columns
+                barcode_candidates = scanned_df.columns.tolist()
 
             barcode_column = st.selectbox(
                 "Select the column containing barcodes", barcode_candidates
@@ -531,3 +560,8 @@ with st.expander("🔍 Quick Stock Check (Scan Barcode)"):
             st.markdown('</div></div>', unsafe_allow_html=True)
         else:
             st.error("Barcode not found in inventory.")
+
+# --- Manual Push Button for ALL Excel Files ---
+st.markdown("## 🔄 Manual GitHub Sync")
+if st.button("Push ALL Excel files to GitHub"):
+    push_all_excel_to_github()
