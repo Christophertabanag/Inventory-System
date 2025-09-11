@@ -249,7 +249,7 @@ with st.expander("➕ Add a New Product", expanded=st.session_state["add_product
                     input_values[header] = st.text_input(header, value=smart_suggestion, key=unique_key)
                 elif header.upper() == "TAXPC":
                     default_tax = smart_suggestion if smart_suggestion in TAXPC_OPTIONS else TAXPC_OPTIONS[9]
-                    input_values[header] = st.selectbox(header, TAXPC_OPTIONS, index=TAXPC_OPTIONS.index(default_tax), key=unique_key)
+                    input_values[header] = st.selectbox(header, TAXPC_OPTIONS, index=MAX(0, TAXPC_OPTIONS.index(default_tax)), key=unique_key)
                 elif header.upper() == "AVAIL FROM":
                     # Safe date handling for initial value
                     try:
@@ -303,6 +303,13 @@ with st.expander("➕ Add a New Product", expanded=st.session_state["add_product
                 st.rerun()
 
 st.markdown('### Current Inventory')
+
+# --- FIX: Convert problematic columns to string before displaying ---
+for col in [framecode_col, barcode_col]:
+    if col in df.columns:
+        df[col] = df[col].astype(str)
+
+st.dataframe(df, width='stretch')  # Replaces use_container_width
 
 with st.expander("✏️ Edit or 🗑 Delete Products", expanded=st.session_state["edit_delete_expanded"]):
     if len(df) > 0:
@@ -358,7 +365,7 @@ with st.expander("✏️ Edit or 🗑 Delete Products", expanded=st.session_stat
                             edit_values[header] = st.text_input(header, value=str(show_value), key=unique_key)
                         elif header.upper() == "TAXPC":
                             default_tax = str(show_value) if str(show_value) in TAXPC_OPTIONS else TAXPC_OPTIONS[9]
-                            edit_values[header] = st.selectbox(header, TAXPC_OPTIONS, index=TAXPC_OPTIONS.index(default_tax), key=unique_key)
+                            edit_values[header] = st.selectbox(header, TAXPC_OPTIONS, index=MAX(0, TAXPC_OPTIONS.index(default_tax)), key=unique_key)
                         elif header.upper() == "AVAIL FROM":
                             try:
                                 if pd.isnull(show_value) or show_value == "":
@@ -427,8 +434,6 @@ if st.session_state.get("pending_delete_index") is not None:
         if st.button("Cancel", key="cancel_delete_btn"):
             st.session_state["pending_delete_index"] = None
 
-st.dataframe(df, use_container_width=True)
-
 with st.expander("📦 Stock Count"):
     st.write("Upload a file (CSV, Excel, or TXT) of scanned barcodes from your stock count.")
     uploaded_file = st.file_uploader("Upload scanned barcodes", type=["csv", "xlsx", "txt"])
@@ -449,7 +454,7 @@ with st.expander("📦 Stock Count"):
 
         if scanned_df is not None:
             st.write("Preview of your uploaded file:")
-            st.dataframe(scanned_df.head(), use_container_width=True)
+            st.dataframe(scanned_df.head(), width='stretch')
             barcode_candidates = [
                 col for col in scanned_df.columns
                 if "barcode" in col.lower() or "ean" in col.lower() or "upc" in col.lower() or "code" in col.lower()
@@ -471,10 +476,10 @@ with st.expander("📦 Stock Count"):
             st.error(f"Unexpected items: {len(unexpected)}")
             if matched:
                 st.write("✅ Present items:")
-                st.dataframe(df[df[barcode_col].map(clean_barcode).isin(matched)])
+                st.dataframe(df[df[barcode_col].map(clean_barcode).isin(matched)], width='stretch')
             if missing:
                 st.write("❌ Missing items:")
-                st.dataframe(df[df[barcode_col].map(clean_barcode).isin(missing)])
+                st.dataframe(df[df[barcode_col].map(clean_barcode).isin(missing)], width='stretch')
             if unexpected:
                 st.write("⚠️ Unexpected items (not in system):")
                 st.write(list(unexpected))
@@ -487,7 +492,7 @@ with st.expander("🔍 Quick Stock Check (Scan Barcode)"):
         matches = df[df[barcode_col].map(clean_barcode) == cleaned_input]
         if not matches.empty:
             st.success("Product found:")
-            st.dataframe(matches)
+            st.dataframe(matches, width='stretch')
             product = matches.iloc[0]
 
             barcode_value = product[barcode_col]
