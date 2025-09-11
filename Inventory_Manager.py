@@ -308,7 +308,12 @@ st.markdown('### Current Inventory')
 for col in [framecode_col, barcode_col]:
     if col in df.columns:
         df[col] = df[col].astype(str)
-
+        
+# --- FIX: Convert all object columns to strings before displaying ---
+for col in df.columns:
+    if df[col].dtype == 'object':
+        df[col] = df[col].astype(str)
+        
 st.dataframe(df, width='stretch')  # Replaces use_container_width
 
 with st.expander("✏️ Edit or 🗑 Delete Products", expanded=st.session_state["edit_delete_expanded"]):
