@@ -249,7 +249,7 @@ with st.expander("➕ Add a New Product", expanded=st.session_state["add_product
                     input_values[header] = st.text_input(header, value=smart_suggestion, key=unique_key)
                 elif header.upper() == "TAXPC":
                     default_tax = smart_suggestion if smart_suggestion in TAXPC_OPTIONS else TAXPC_OPTIONS[9]
-                    input_values[header] = st.selectbox(header, TAXPC_OPTIONS, index=MAX(0, TAXPC_OPTIONS.index(default_tax)), key=unique_key)
+                    input_values[header] = st.selectbox(header, TAXPC_OPTIONS, index=max(0, TAXPC_OPTIONS.index(default_tax)), key=unique_key)
                 elif header.upper() == "AVAIL FROM":
                     # Safe date handling for initial value
                     try:
@@ -365,7 +365,7 @@ with st.expander("✏️ Edit or 🗑 Delete Products", expanded=st.session_stat
                             edit_values[header] = st.text_input(header, value=str(show_value), key=unique_key)
                         elif header.upper() == "TAXPC":
                             default_tax = str(show_value) if str(show_value) in TAXPC_OPTIONS else TAXPC_OPTIONS[9]
-                            edit_values[header] = st.selectbox(header, TAXPC_OPTIONS, index=MAX(0, TAXPC_OPTIONS.index(default_tax)), key=unique_key)
+                            edit_values[header] = st.selectbox(header, TAXPC_OPTIONS, index=max(0, TAXPC_OPTIONS.index(default_tax)), key=unique_key)
                         elif header.upper() == "AVAIL FROM":
                             try:
                                 if pd.isnull(show_value) or show_value == "":
