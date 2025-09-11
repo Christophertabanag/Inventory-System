@@ -101,7 +101,18 @@ if product_row is not None:
 
 st.markdown("---")
 st.subheader("Secondary Inventory Preview")
-st.dataframe(secondary_df.drop(columns=["BARCODE_CLEAN"], errors="ignore"), use_container_width=True)  
+st.dataframe(secondary_df.drop(columns=["BARCODE_CLEAN"], errors="ignore"), use_container_width=True)
+
+# --- Download button for secondary inventory ---
+buffer_secondary = io.BytesIO()
+secondary_df.drop(columns=["BARCODE_CLEAN"], errors="ignore").to_excel(buffer_secondary, index=False)
+buffer_secondary.seek(0)
+st.download_button(
+    label="Download Secondary Inventory as Excel",
+    data=buffer_secondary,
+    file_name="secondary_inventory.xlsx",
+    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+)
 
 st.markdown("---")
 st.subheader("Unfound Barcodes List")
@@ -122,12 +133,12 @@ if not unfound_df.empty:
                 unfound_df = delete_unfound_barcode(barcode_cleaned, unfound_df)
                 # No rerun; UI updates on next interaction
 
-    buffer = io.BytesIO()
-    unfound_df.to_excel(buffer, index=False, engine='openpyxl')
-    buffer.seek(0)
+    buffer_unfound = io.BytesIO()
+    unfound_df.to_excel(buffer_unfound, index=False, engine='openpyxl')
+    buffer_unfound.seek(0)
     st.download_button(
         label="Download Unfound Barcodes as Excel",
-        data=buffer,
+        data=buffer_unfound,
         file_name="unfound_barcodes.xlsx",
         mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
     )
