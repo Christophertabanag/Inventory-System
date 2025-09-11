@@ -4,10 +4,10 @@ import os
 from datetime import datetime
 import socket
 
-INVENTORY_FILE = "/Users/christopherallantabanag/Desktop/barcode_project/inventory.xlsx"
-ARCHIVE_FILE = os.path.join(os.path.dirname(INVENTORY_FILE), "archive_inventory.xlsx")
-SALES_FILE = os.path.join(os.path.dirname(INVENTORY_FILE), "sales.xlsx")
-AUDIT_FILE = os.path.join(os.path.dirname(INVENTORY_FILE), "auditlog.xlsx")
+INVENTORY_FILE = os.path.join(os.path.dirname(__file__), "inventory.xlsx")
+ARCHIVE_FILE = os.path.join(os.path.dirname(__file__), "archive_inventory.xlsx")
+SALES_FILE = os.path.join(os.path.dirname(__file__), "sales.xlsx")
+AUDIT_FILE = os.path.join(os.path.dirname(__file__), "auditlog.xlsx")
 
 def load_inventory():
     if os.path.exists(INVENTORY_FILE):
