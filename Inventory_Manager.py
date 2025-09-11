@@ -8,6 +8,8 @@ from barcode.writer import ImageWriter
 import io
 
 INVENTORY_FILE = os.path.join(os.path.dirname(__file__), "inventory.xlsx")
+ARCHIVE_FILE = os.path.join(os.path.dirname(__file__), "archive_inventory.xlsx")  # Change if needed
+
 st.set_page_config(page_title="Inventory Manager", layout="wide")
 
 def load_inventory():
@@ -17,6 +19,14 @@ def load_inventory():
     else:
         st.error("Inventory file not found. Please place 'inventory.xlsx' in the app directory.")
         st.stop()
+
+def load_archive_inventory():
+    if os.path.exists(ARCHIVE_FILE):
+        df = pd.read_excel(ARCHIVE_FILE)
+        return df
+    else:
+        st.info("Archive inventory file not found.")
+        return pd.DataFrame()
 
 def clean_barcode(val):
     if pd.isnull(val):
@@ -163,6 +173,7 @@ if "supplier_for_framecode" not in st.session_state:
     st.session_state["supplier_for_framecode"] = ""
 
 df = load_inventory()
+archive_df = load_archive_inventory()
 columns = list(df.columns)
 barcode_col = "BARCODE"
 framecode_col = "FRAME NO."
@@ -251,7 +262,6 @@ with st.expander("➕ Add a New Product", expanded=st.session_state["add_product
                     default_tax = smart_suggestion if smart_suggestion in TAXPC_OPTIONS else TAXPC_OPTIONS[9]
                     input_values[header] = st.selectbox(header, TAXPC_OPTIONS, index=max(0, TAXPC_OPTIONS.index(default_tax)), key=unique_key)
                 elif header.upper() == "AVAIL FROM":
-                    # Safe date handling for initial value
                     try:
                         if pd.isnull(smart_suggestion) or smart_suggestion == "":
                             date_val = datetime.now().date()
@@ -303,6 +313,42 @@ with st.expander("➕ Add a New Product", expanded=st.session_state["add_product
                 st.rerun()
 
 st.markdown('### Current Inventory')
+
+# --- FIX: Convert problematic columns to string before displaying ---
+for col in [framecode_col, barcode_col]:
+    if col in df.columns:
+        df[col] = df[col].astype(str)
+for col in df.columns:
+    if df[col].dtype == 'object':
+        df[col] = df[col].astype(str)
+
+st.dataframe(df, width='stretch')
+
+# --- DOWNLOAD BUTTON FOR MAIN INVENTORY ---
+with open(INVENTORY_FILE, "rb") as f:
+    st.download_button(
+        label="⬇️ Download Main Inventory (Excel)",
+        data=f,
+        file_name="inventory.xlsx",
+        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    )
+
+# --- SHOW ARCHIVE INVENTORY (if available) ---
+if not archive_df.empty:
+    st.markdown("### Archive Inventory")
+    st.dataframe(archive_df, width='stretch')
+    with open(ARCHIVE_FILE, "rb") as f:
+        st.download_button(
+            label="⬇️ Download Archive Inventory (Excel)",
+            data=f,
+            file_name="archive_inventory.xlsx",
+            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        )
+else:
+    st.info("No archive inventory file found to display or download.")
+
+# --- The rest of your script remains unchanged ---
+# ... (editing, deleting, stock count, quick check, etc.) ...
 
 # --- FIX: Convert problematic columns to string before displaying ---
 for col in [framecode_col, barcode_col]:
