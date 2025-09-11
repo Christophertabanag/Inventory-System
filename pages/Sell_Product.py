@@ -3,6 +3,7 @@ import pandas as pd
 import os
 from datetime import datetime
 import socket
+import io
 
 PROJECT_ROOT = os.path.dirname(os.path.dirname(__file__))
 
@@ -225,7 +226,27 @@ with details_col:
 with st.expander("Sales History", expanded=False):
     # Show newest first
     st.dataframe(sales_df.sort_values(by="Timestamp", ascending=False).head(100), use_container_width=True)
+    # --- Download button for sales history ---
+    output = io.BytesIO()
+    sales_df.to_excel(output, index=False)
+    output.seek(0)
+    st.download_button(
+        label="⬇️ Download Sales History (Excel)",
+        data=output,
+        file_name="sales_history.xlsx",
+        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    )
 
 with st.expander("Audit Log", expanded=False):
     # Show newest first
     st.dataframe(audit_df.sort_values(by="Timestamp", ascending=False).head(100), use_container_width=True)
+    # --- Download button for audit log ---
+    output_audit = io.BytesIO()
+    audit_df.to_excel(output_audit, index=False)
+    output_audit.seek(0)
+    st.download_button(
+        label="⬇️ Download Audit Log (Excel)",
+        data=output_audit,
+        file_name="audit_log.xlsx",
+        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    )
