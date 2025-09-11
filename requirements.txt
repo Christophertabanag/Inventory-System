@@ -4,3 +4,4 @@ openpyxl
 python-barcode
 PyGithub
 fpdf
+python-barcode
