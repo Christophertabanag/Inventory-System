@@ -1,5 +1,6 @@
 import streamlit as st
 import pandas as pd
+import numpy as np
 import os
 from datetime import datetime
 import random
@@ -11,6 +12,11 @@ INVENTORY_FILE = os.path.join(os.path.dirname(__file__), "inventory.xlsx")
 ARCHIVE_FILE = os.path.join(os.path.dirname(__file__), "archive_inventory.xlsx")  # Change if needed
 
 st.set_page_config(page_title="Inventory Manager", layout="wide")
+
+def clean_nans(df):
+    # Replace np.nan, pd.NA, and 'nan' string with empty string
+    df = df.replace([np.nan, pd.NA, 'nan'], '', regex=True)
+    return df
 
 def load_inventory():
     if os.path.exists(INVENTORY_FILE):
@@ -37,46 +43,6 @@ def clean_barcode(val):
         if dec_part == '0':
             s = int_part
     return s
-
-def clean_dataframe_for_display(df):
-    """
-    Clean DataFrame by replacing all NaN values with empty strings for display.
-    Handles np.nan, pd.NA, and string 'nan' values.
-    """
-    df_clean = df.copy()
-    
-    # Replace all types of NaN values with empty strings
-    df_clean = df_clean.fillna("")
-    
-    # Convert object columns to string and replace string 'nan' with empty strings
-    for col in df_clean.columns:
-        if df_clean[col].dtype == 'object':
-            df_clean[col] = df_clean[col].astype(str)
-            df_clean[col] = df_clean[col].replace('nan', '')
-            df_clean[col] = df_clean[col].replace('NaN', '')
-            df_clean[col] = df_clean[col].replace('<NA>', '')
-    
-    return df_clean
-
-def clean_dataframe_for_excel(df):
-    """
-    Clean DataFrame by replacing all NaN values with space characters for Excel export.
-    This ensures that Excel files don't contain 'nan' string values and the spaces
-    won't be converted back to NaN when reading Excel files.
-    """
-    df_clean = df.copy()
-    
-    # Convert all columns to object type first, then clean them
-    for col in df_clean.columns:
-        # Convert to object type to handle all data uniformly
-        df_clean[col] = df_clean[col].astype('object')
-        # Replace NaN values with a single space (which Excel won't convert back to NaN)
-        df_clean[col] = df_clean[col].fillna(' ')
-        # Convert to string and replace various forms of NaN strings
-        df_clean[col] = df_clean[col].astype(str)
-        df_clean[col] = df_clean[col].replace(['nan', 'NaN', '<NA>', 'None'], ' ')
-    
-    return df_clean
 
 def generate_unique_barcode(df):
     while True:
@@ -345,8 +311,8 @@ with st.expander("➕ Add a New Product", expanded=st.session_state["add_product
                 if "Timestamp" in df.columns:
                     new_row["Timestamp"] = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
                 df = pd.concat([df, pd.DataFrame([new_row])], ignore_index=True)
-                df_for_excel = clean_dataframe_for_excel(df)
-                df_for_excel.to_excel(INVENTORY_FILE, index=False)
+                # Clean nans before saving
+                clean_nans(df).to_excel(INVENTORY_FILE, index=False)
                 st.success(f"Product added successfully!")
                 st.session_state["barcode"] = ""
                 st.session_state["framecode"] = ""
@@ -355,48 +321,48 @@ with st.expander("➕ Add a New Product", expanded=st.session_state["add_product
 
 st.markdown('### Current Inventory')
 
-# Clean DataFrame for display - replace NaN values with empty strings
-df_display = clean_dataframe_for_display(df)
+# --- FIX: Convert problematic columns to string before displaying ---
+for col in [framecode_col, barcode_col]:
+    if col in df.columns:
+        df[col] = df[col].astype(str)
+for col in df.columns:
+    if df[col].dtype == 'object':
+        df[col] = df[col].astype(str)
 
-st.dataframe(df_display, width='stretch')
+st.dataframe(clean_nans(df), width='stretch')
 
 # --- DOWNLOAD BUTTON FOR MAIN INVENTORY ---
-# Create a cleaned Excel file for download
-df_for_download = clean_dataframe_for_excel(df)
-excel_buffer = io.BytesIO()
-df_for_download.to_excel(excel_buffer, index=False)
-excel_buffer.seek(0)
-
-st.download_button(
-    label="⬇️ Download Main Inventory (Excel)",
-    data=excel_buffer.getvalue(),
-    file_name="inventory.xlsx",
-    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-)
+with open(INVENTORY_FILE, "rb") as f:
+    st.download_button(
+        label="⬇️ Download Main Inventory (Excel)",
+        data=f,
+        file_name="inventory.xlsx",
+        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    )
 
 # --- SHOW ARCHIVE INVENTORY (if available) ---
 if not archive_df.empty:
     st.markdown("### Archive Inventory")
-    archive_df_display = clean_dataframe_for_display(archive_df)
-    st.dataframe(archive_df_display, width='stretch')
-    
-    # Create a cleaned Excel file for archive download
-    archive_df_for_download = clean_dataframe_for_excel(archive_df)
-    archive_excel_buffer = io.BytesIO()
-    archive_df_for_download.to_excel(archive_excel_buffer, index=False)
-    archive_excel_buffer.seek(0)
-    
-    st.download_button(
-        label="⬇️ Download Archive Inventory (Excel)",
-        data=archive_excel_buffer.getvalue(),
-        file_name="archive_inventory.xlsx",
-        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-    )
+    st.dataframe(clean_nans(archive_df), width='stretch')
+    with open(ARCHIVE_FILE, "rb") as f:
+        st.download_button(
+            label="⬇️ Download Archive Inventory (Excel)",
+            data=f,
+            file_name="archive_inventory.xlsx",
+            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        )
 else:
     st.info("No archive inventory file found to display or download.")
 
-# --- The rest of your script remains unchanged ---
-# ... (editing, deleting, stock count, quick check, etc.) ...
+for col in [framecode_col, barcode_col]:
+    if col in df.columns:
+        df[col] = df[col].astype(str)
+        
+for col in df.columns:
+    if df[col].dtype == 'object':
+        df[col] = df[col].astype(str)
+        
+st.dataframe(clean_nans(df), width='stretch')  # Replaces use_container_width
 
 with st.expander("✏️ Edit or 🗑 Delete Products", expanded=st.session_state["edit_delete_expanded"]):
     if len(df) > 0:
@@ -495,8 +461,8 @@ with st.expander("✏️ Edit or 🗑 Delete Products", expanded=st.session_stat
                                 df.at[selected_row, h] = ""
                         if "Timestamp" in df.columns:
                             df.at[selected_row, "Timestamp"] = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-                        df_for_excel = clean_dataframe_for_excel(df)
-                        df_for_excel.to_excel(INVENTORY_FILE, index=False)
+                        # Clean nans before saving
+                        clean_nans(df).to_excel(INVENTORY_FILE, index=False)
                         st.success("Product updated successfully!")
                         st.session_state["edit_delete_expanded"] = True
                         st.rerun()
@@ -512,8 +478,8 @@ if st.session_state.get("pending_delete_index") is not None:
     with confirm_col:
         if st.button("Confirm Delete", key="confirm_delete_btn"):
             df = df.drop(st.session_state["pending_delete_index"]).reset_index(drop=True)
-            df_for_excel = clean_dataframe_for_excel(df)
-            df_for_excel.to_excel(INVENTORY_FILE, index=False)
+            # Clean nans before saving
+            clean_nans(df).to_excel(INVENTORY_FILE, index=False)
             st.success("Product deleted successfully!")
             st.session_state["edit_product_index"] = None
             st.session_state["edit_delete_expanded"] = True
@@ -543,8 +509,7 @@ with st.expander("📦 Stock Count"):
 
         if scanned_df is not None:
             st.write("Preview of your uploaded file:")
-            scanned_df_display = clean_dataframe_for_display(scanned_df)
-            st.dataframe(scanned_df_display.head(), width='stretch')
+            st.dataframe(clean_nans(scanned_df.head()), width='stretch')
             barcode_candidates = [
                 col for col in scanned_df.columns
                 if "barcode" in col.lower() or "ean" in col.lower() or "upc" in col.lower() or "code" in col.lower()
@@ -566,14 +531,10 @@ with st.expander("📦 Stock Count"):
             st.error(f"Unexpected items: {len(unexpected)}")
             if matched:
                 st.write("✅ Present items:")
-                matched_df = df[df[barcode_col].map(clean_barcode).isin(matched)]
-                matched_df_display = clean_dataframe_for_display(matched_df)
-                st.dataframe(matched_df_display, width='stretch')
+                st.dataframe(clean_nans(df[df[barcode_col].map(clean_barcode).isin(matched)]), width='stretch')
             if missing:
                 st.write("❌ Missing items:")
-                missing_df = df[df[barcode_col].map(clean_barcode).isin(missing)]
-                missing_df_display = clean_dataframe_for_display(missing_df)
-                st.dataframe(missing_df_display, width='stretch')
+                st.dataframe(clean_nans(df[df[barcode_col].map(clean_barcode).isin(missing)]), width='stretch')
             if unexpected:
                 st.write("⚠️ Unexpected items (not in system):")
                 st.write(list(unexpected))
@@ -586,8 +547,7 @@ with st.expander("🔍 Quick Stock Check (Scan Barcode)"):
         matches = df[df[barcode_col].map(clean_barcode) == cleaned_input]
         if not matches.empty:
             st.success("Product found:")
-            matches_display = clean_dataframe_for_display(matches)
-            st.dataframe(matches_display, width='stretch')
+            st.dataframe(clean_nans(matches), width='stretch')
             product = matches.iloc[0]
 
             barcode_value = product[barcode_col]
