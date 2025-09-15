@@ -322,7 +322,7 @@ for col in df.columns:
     if df[col].dtype == 'object':
         df[col] = df[col].astype(str)
 
-st.dataframe(df, width='stretch')
+st.dataframe(clean_nans(df), width='stretch')
 
 # --- DOWNLOAD BUTTON FOR MAIN INVENTORY ---
 with open(INVENTORY_FILE, "rb") as f:
