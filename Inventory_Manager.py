@@ -325,8 +325,9 @@ with st.expander("➕ Add a New Product", expanded=st.session_state["add_product
 
 st.markdown('### Current Inventory')
 
-# Icon-based download buttons in a row
-col1, col2 = st.columns([1, 1])
+st.dataframe(clean_nans(df), width='stretch')  # Show the table first
+
+col1, col2 = st.columns([1, 1])                # Then the buttons
 with col1:
     st.download_button(
         label="📄 Excel",
@@ -341,7 +342,7 @@ with col2:
         file_name="inventory.csv",
         mime="text/csv"
     )
-
+    
 # Display the inventory table
 st.dataframe(clean_nans(df), width='stretch')
 
