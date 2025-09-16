@@ -369,11 +369,11 @@ def save_to_github(file_path, commit_message="Manual inventory save"):
         subprocess.run(["git", "add", file_path], check=True)
         subprocess.run(["git", "commit", "-m", commit_message], check=True)
         subprocess.run(["git", "push"], check=True)
-        st.success("Inventory file successfully saved and pushed to GitHub!")
+        st.sidebar.success("Inventory file successfully saved and pushed to GitHub!")
     except Exception as e:
-        st.error(f"Saving to GitHub failed: {e}")
+        st.sidebar.error(f"Saving to GitHub failed: {e}")
 
-if st.button("💾 Save Inventory to GitHub"):
+if st.sidebar.button("💾 Save Inventory"):
     save_to_github(INVENTORY_FILE, commit_message="Manual inventory save")
 
 if not archive_df.empty:
