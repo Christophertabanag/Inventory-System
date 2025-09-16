@@ -325,9 +325,11 @@ with st.expander("➕ Add a New Product", expanded=st.session_state["add_product
 
 st.markdown('### Current Inventory')
 
-st.dataframe(clean_nans(df), width='stretch')  # Show the table first
+# Display the inventory table FIRST
+st.dataframe(clean_nans(df), width='stretch')
 
-col1, col2 = st.columns([1, 1])                # Then the buttons
+# Then, place the download buttons in a row below the table
+col1, col2 = st.columns([1, 1])
 with col1:
     st.download_button(
         label="📄 Excel",
@@ -342,9 +344,7 @@ with col2:
         file_name="inventory.csv",
         mime="text/csv"
     )
-    
-# Display the inventory table
-st.dataframe(clean_nans(df), width='stretch')
+
 
 if not archive_df.empty:
     archive_df = force_all_columns_to_string(archive_df)
