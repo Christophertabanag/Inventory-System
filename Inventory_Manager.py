@@ -12,7 +12,7 @@ def clean_nans(df):
     df = df.replace([np.nan, pd.NA, 'nan'], '', regex=True)
     return df
 
-# --- Place your button styling CSS block here ---
+# --- Button styling CSS block ---
 st.markdown("""
     <style>
     div.stButton > button {
@@ -22,6 +22,37 @@ st.markdown("""
         padding: 8px 24px !important;
         border-radius: 4px !important;
         font-weight: bold !important;
+    }
+    div[data-testid="column"] {
+        padding-right: 4px !important;
+        padding-left: 0px !important;
+        margin: 0 !important;
+    }
+    .compact-form input, .compact-form select, .compact-form textarea {
+        font-size: 11px !important;
+        height: 22px !important;
+        padding: 1px 4px !important;
+        margin-bottom: 0px !important;
+        margin-top: 0px !important;
+    }
+    .compact-form label {
+        font-size: 11px !important;
+        margin-bottom: 0px !important;
+        margin-top: 0px !important;
+    }
+    .stForm {
+        padding-top: 0;
+        padding-bottom: 0;
+        margin-top: 0;
+        margin-bottom: 0;
+        border: none !important;
+        box-shadow: none !important;
+        background: transparent !important;
+    }
+    div[data-testid="stForm"] {
+        border: none !important;
+        box-shadow: none !important;
+        background: transparent !important;
     }
     </style>
 """, unsafe_allow_html=True)
@@ -121,7 +152,7 @@ def get_smart_default(header, df):
     if header == "TAXPC":
         return "GST 10%"
     if header == "AVAIL FROM":
-        return datetime.now().date()
+        return datetime.now().date()  # This is only used for edits, not new product
     if header == "FRSTATUS":
         return "PRACTICE OWNED"
     if header == "NOTE":
@@ -133,51 +164,13 @@ VISIBLE_FIELDS = [
     "F COLOUR", "F GROUP", "SUPPLIER", "QUANTITY", "F TYPE", "TEMPLE", "DEPTH", "DIAG",
     "BASECURVE", "RRP", "EXCOSTPR", "COST PRICE", "TAXPC", "FRSTATUS", "AVAIL FROM", "NOTE"
 ]
-
 FREE_TEXT_FIELDS = [
     "PKEY", "F COLOUR", "F GROUP", "BASECURVE"
 ]
-
 F_TYPE_OPTIONS = ["MEN", "WOMEN", "KIDS", "UNISEX"]
 FRSTATUS_OPTIONS = ["CONSIGNMENT OWNED", "PRACTICE OWNED"]
 TAXPC_OPTIONS = [f"GST {i}%" for i in range(1, 21)]
 SIZE_OPTIONS = [f"{i:02d}-{j:02d}" for i in range(100) for j in range(100)]
-
-st.markdown("""
-    <style>
-    div[data-testid="column"] {
-        padding-right: 4px !important;
-        padding-left: 0px !important;
-        margin: 0 !important;
-    }
-    .compact-form input, .compact-form select, .compact-form textarea {
-        font-size: 11px !important;
-        height: 22px !important;
-        padding: 1px 4px !important;
-        margin-bottom: 0px !important;
-        margin-top: 0px !important;
-    }
-    .compact-form label {
-        font-size: 11px !important;
-        margin-bottom: 0px !important;
-        margin-top: 0px !important;
-    }
-    .stForm {
-        padding-top: 0;
-        padding-bottom: 0;
-        margin-top: 0;
-        margin-bottom: 0;
-        border: none !important;
-        box-shadow: none !important;
-        background: transparent !important;
-    }
-    div[data-testid="stForm"] {
-        border: none !important;
-        box-shadow: none !important;
-        background: transparent !important;
-    }
-    </style>
-""", unsafe_allow_html=True)
 
 if "add_product_expanded" not in st.session_state:
     st.session_state["add_product_expanded"] = False
@@ -283,9 +276,8 @@ with st.expander("➕ Add a New Product", expanded=st.session_state["add_product
                     default_tax = smart_suggestion if smart_suggestion in TAXPC_OPTIONS else TAXPC_OPTIONS[9]
                     input_values[header] = st.selectbox(header, TAXPC_OPTIONS, index=max(0, TAXPC_OPTIONS.index(default_tax)), key=unique_key)
                 elif header.upper() == "AVAIL FROM":
-    # Always use current date
-    date_val = datetime.now().date()
-    input_values[header] = st.date_input(header, value=date_val, key=unique_key)
+                    date_val = datetime.now().date()  # ALWAYS set to current date when adding
+                    input_values[header] = st.date_input(header, value=date_val, key=unique_key)
                 elif header.upper() == "NOTE":
                     input_values[header] = st.text_input(header, value=smart_suggestion, key=unique_key)
                 else:
@@ -439,9 +431,14 @@ with st.expander("✏️ Edit or 🗑 Delete Products", expanded=st.session_stat
                             default_tax = str(show_value) if str(show_value) in TAXPC_OPTIONS else TAXPC_OPTIONS[9]
                             edit_values[header] = st.selectbox(header, TAXPC_OPTIONS, index=max(0, TAXPC_OPTIONS.index(default_tax)), key=unique_key)
                         elif header.upper() == "AVAIL FROM":
-    # Always use current date
-    date_val = datetime.now().date()
-    input_values[header] = st.date_input(header, value=date_val, key=unique_key)
+                            try:
+                                if pd.isnull(show_value) or show_value == "":
+                                    date_val = datetime.now().date()
+                                else:
+                                    date_val = pd.to_datetime(show_value).date()
+                            except Exception:
+                                date_val = datetime.now().date()
+                            edit_values[header] = st.date_input(header, value=date_val, key=unique_key)
                         elif header.upper() == "NOTE":
                             edit_values[header] = st.text_input(header, value=str(show_value), key=unique_key)
                         else:
@@ -569,7 +566,6 @@ with st.expander("🔍 Quick Stock Check (Scan Barcode)"):
             st.success("Product found:")
             st.dataframe(clean_nans(matches), width='stretch')
             product = matches.iloc[0]
-
             barcode_value = product[barcode_col]
             barcode_img_buffer = generate_barcode_image(barcode_value)
             rrp = str(product.get("RRP", ""))
@@ -585,7 +581,6 @@ with st.expander("🔍 Quick Stock Check (Scan Barcode)"):
             manufact = str(product.get("MANUFACTURER", ""))
             fcolour = str(product.get("F COLOUR", ""))
             size = str(product.get("SIZE", ""))
-
             st.markdown('<div class="print-label-block">', unsafe_allow_html=True)
             if barcode_img_buffer:
                 st.image(barcode_img_buffer, width=220)
