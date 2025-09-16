@@ -333,27 +333,40 @@ st.markdown('### Current Inventory')
 df = force_all_columns_to_string(df)
 st.dataframe(clean_nans(df), width='stretch')
 
-# --- DOWNLOAD BUTTON FOR MAIN INVENTORY ---
-with open(INVENTORY_FILE, "rb") as f:
-    st.download_button(
-        label="⬇️ Download Main Inventory (Excel)",
-        data=f,
-        file_name="inventory.xlsx",
-        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-    )
+# --- DOWNLOAD BUTTONS FOR MAIN INVENTORY ---
+download_excel = st.download_button(
+    label="⬇️ Download Excel)",
+    data=open(INVENTORY_FILE, "rb").read(),
+    file_name="inventory.xlsx",
+    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+)
+
+csv_bytes = clean_nans(df).to_csv(index=False).encode('utf-8')
+download_csv = st.download_button(
+    label="⬇️ Download (CSV)",
+    data=csv_bytes,
+    file_name="inventory.csv",
+    mime="text/csv"
+)
 
 # --- SHOW ARCHIVE INVENTORY (if available) ---
 if not archive_df.empty:
     archive_df = force_all_columns_to_string(archive_df)
     st.markdown("### Archive Inventory")
     st.dataframe(clean_nans(archive_df), width='stretch')
-    with open(ARCHIVE_FILE, "rb") as f:
-        st.download_button(
-            label="⬇️ Download Archive Inventory (Excel)",
-            data=f,
-            file_name="archive_inventory.xlsx",
-            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-        )
+    st.download_button(
+    label="⬇️ Download Archive (Excel)",
+    data=open(ARCHIVE_FILE, "rb").read(),
+    file_name="archive_inventory.xlsx",
+    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+)
+archive_csv_bytes = clean_nans(archive_df).to_csv(index=False).encode('utf-8')
+st.download_button(
+    label="⬇️ Download Archive (CSV)",
+    data=archive_csv_bytes,
+    file_name="archive_inventory.csv",
+    mime="text/csv"
+)
 else:
     st.info("No archive inventory file found to display or download.")
 
