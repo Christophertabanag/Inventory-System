@@ -7,9 +7,9 @@ import random
 import barcode
 from barcode.writer import ImageWriter
 import io
+import subprocess  # <-- NEW import for git commands
 
 def clean_nans(df):
-    # Replace np.nan, pd.NA, and 'nan' string with empty string
     df = df.replace([np.nan, pd.NA, 'nan'], '', regex=True)
     return df
 
@@ -28,7 +28,6 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 def force_all_columns_to_string(df):
-    # Force every column to string to prevent ArrowTypeError
     for col in df.columns:
         df[col] = df[col].astype(str)
     return df
@@ -340,11 +339,9 @@ with st.expander("➕ Add a New Product", expanded=st.session_state["add_product
 
 st.markdown('### Current Inventory')
 
-# --- Force all columns to string before displaying ---
 df = force_all_columns_to_string(df)
 st.dataframe(clean_nans(df), width='stretch')
 
-# --- DOWNLOAD BUTTONS FOR MAIN INVENTORY ---
 download_excel = st.download_button(
     label="⬇️ Download Excel)",
     data=open(INVENTORY_FILE, "rb").read(),
@@ -365,7 +362,20 @@ st.download_button(
     file_name="inventory.xlsx",
     mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
 )
-# --- SHOW ARCHIVE INVENTORY (if available) ---
+
+# --- NEW BUTTON FOR MANUAL SAVE TO GITHUB ---
+def save_to_github(file_path, commit_message="Manual inventory save"):
+    try:
+        subprocess.run(["git", "add", file_path], check=True)
+        subprocess.run(["git", "commit", "-m", commit_message], check=True)
+        subprocess.run(["git", "push"], check=True)
+        st.success("Inventory file successfully saved and pushed to GitHub!")
+    except Exception as e:
+        st.error(f"Saving to GitHub failed: {e}")
+
+if st.button("💾 Save Inventory to GitHub"):
+    save_to_github(INVENTORY_FILE, commit_message="Manual inventory save")
+
 if not archive_df.empty:
     archive_df = force_all_columns_to_string(archive_df)
     st.markdown("### Archive Inventory")
