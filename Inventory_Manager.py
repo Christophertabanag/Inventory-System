@@ -261,9 +261,15 @@ with st.expander("➕ Add a New Product", expanded=st.session_state["add_product
                 elif header.upper() == "TAXPC":
                     default_tax = smart_suggestion if smart_suggestion in TAXPC_OPTIONS else TAXPC_OPTIONS[9]
                     input_values[header] = st.selectbox(header, TAXPC_OPTIONS, index=max(0, TAXPC_OPTIONS.index(default_tax)), key=unique_key)
-               elif header.upper() == "AVAIL FROM":
-                date_val = datetime.now().date()
-                input_values[header] = st.date_input(header, value=date_val, key=unique_key)
+                elif header.upper() == "AVAIL FROM":
+                    try:
+                        if pd.isnull(smart_suggestion) or smart_suggestion == "":
+                            date_val = datetime.now().date()
+                        else:
+                            date_val = pd.to_datetime(smart_suggestion).date()
+                    except Exception:
+                        date_val = datetime.now().date()
+                    input_values[header] = st.date_input(header, value=date_val, key=unique_key)
                 elif header.upper() == "NOTE":
                     input_values[header] = st.text_input(header, value=smart_suggestion, key=unique_key)
                 else:
