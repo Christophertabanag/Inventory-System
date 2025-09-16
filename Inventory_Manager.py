@@ -84,8 +84,6 @@ def get_smart_default(header, df):
         return "70.00"
     if header == "TAXPC":
         return "GST 10%"
-    if header == "AVAIL FROM":
-        return datetime.now().date()
     if header == "FRSTATUS":
         return "PRACTICE OWNED"
     if header == "NOTE":
@@ -107,7 +105,6 @@ SIZE_OPTIONS = [f"{i:02d}-{j:02d}" for i in range(100) for j in range(100)]
 
 st.set_page_config(page_title="Inventory Manager", layout="wide")
 
-# --- Place your button styling CSS block here ---
 st.markdown("""
     <style>
     div.stButton > button {
@@ -154,7 +151,6 @@ st.markdown("""
 
 st.title("Inventory Manager")
 
-# --- Inventory file upload ---
 uploaded_file = st.file_uploader("Upload your inventory Excel file", type=["xlsx"])
 if uploaded_file is None:
     st.warning("Please upload an Excel file to get started.")
@@ -228,7 +224,7 @@ with st.expander("➕ Add a New Product", expanded=st.session_state["add_product
             with cols[idx]:
                 st.markdown('<div class="compact-form">', unsafe_allow_html=True)
                 unique_key = f"textinput_{header}"
-                smart_suggestion = get_smart_default(header, df)
+                # --------- DEFAULTS FOR EACH FIELD ----------
                 if header == barcode_col:
                     input_values[header] = st.text_input(header, value=st.session_state["barcode"], key=unique_key)
                 elif header == framecode_col:
@@ -236,44 +232,43 @@ with st.expander("➕ Add a New Product", expanded=st.session_state["add_product
                 elif header.upper() == "SUPPLIER":
                     input_values[header] = st.text_input(header, value=st.session_state.get("supplier_for_framecode", ""), key=unique_key)
                 elif header.lower() == "model":
-                    input_values[header] = st.text_input(header, value=smart_suggestion, key=unique_key)
+                    input_values[header] = st.text_input(header, value=get_smart_default(header, df), key=unique_key)
                 elif header.lower() == "size":
+                    smart_suggestion = get_smart_default(header, df)
                     default_size = smart_suggestion if smart_suggestion in SIZE_OPTIONS else SIZE_OPTIONS[0]
                     input_values[header] = st.selectbox(header, SIZE_OPTIONS, index=SIZE_OPTIONS.index(default_size), key=unique_key)
                 elif header.upper() in FREE_TEXT_FIELDS:
-                    input_values[header] = st.text_input(header, value=smart_suggestion, key=unique_key)
+                    input_values[header] = st.text_input(header, value=get_smart_default(header, df), key=unique_key)
                 elif header.upper() == "MANUFACTURER":
-                    input_values[header] = st.text_input(header, value=smart_suggestion, key=unique_key)
+                    input_values[header] = st.text_input(header, value=get_smart_default(header, df), key=unique_key)
                 elif header.upper() == "QUANTITY":
+                    smart_suggestion = get_smart_default(header, df)
                     try:
                         default_qty = int(smart_suggestion) if smart_suggestion.isdigit() else 1
                     except:
                         default_qty = 1
                     input_values[header] = st.number_input(header, min_value=0, value=default_qty, key=unique_key)
                 elif header.upper() == "F TYPE":
+                    smart_suggestion = get_smart_default(header, df)
                     default_ftype = smart_suggestion if smart_suggestion in F_TYPE_OPTIONS else F_TYPE_OPTIONS[0]
                     input_values[header] = st.selectbox(header, F_TYPE_OPTIONS, index=F_TYPE_OPTIONS.index(default_ftype), key=unique_key)
                 elif header.upper() == "FRSTATUS":
+                    smart_suggestion = get_smart_default(header, df)
                     default_status = smart_suggestion if smart_suggestion in FRSTATUS_OPTIONS else FRSTATUS_OPTIONS[1]
                     input_values[header] = st.selectbox(header, FRSTATUS_OPTIONS, index=FRSTATUS_OPTIONS.index(default_status), key=unique_key)
                 elif header.upper() in ["TEMPLE", "DEPTH", "DIAG", "RRP", "EXCOSTPR", "COST PRICE"]:
-                    input_values[header] = st.text_input(header, value=smart_suggestion, key=unique_key)
+                    input_values[header] = st.text_input(header, value=get_smart_default(header, df), key=unique_key)
                 elif header.upper() == "TAXPC":
+                    smart_suggestion = get_smart_default(header, df)
                     default_tax = smart_suggestion if smart_suggestion in TAXPC_OPTIONS else TAXPC_OPTIONS[9]
                     input_values[header] = st.selectbox(header, TAXPC_OPTIONS, index=max(0, TAXPC_OPTIONS.index(default_tax)), key=unique_key)
                 elif header.upper() == "AVAIL FROM":
-                    try:
-                        if pd.isnull(smart_suggestion) or smart_suggestion == "":
-                            date_val = datetime.now().date()
-                        else:
-                            date_val = pd.to_datetime(smart_suggestion).date()
-                    except Exception:
-                        date_val = datetime.now().date()
+                    date_val = datetime.now().date()
                     input_values[header] = st.date_input(header, value=date_val, key=unique_key)
                 elif header.upper() == "NOTE":
-                    input_values[header] = st.text_input(header, value=smart_suggestion, key=unique_key)
+                    input_values[header] = st.text_input(header, value=get_smart_default(header, df), key=unique_key)
                 else:
-                    input_values[header] = st.text_input(header, value=smart_suggestion, key=unique_key)
+                    input_values[header] = st.text_input(header, value=get_smart_default(header, df), key=unique_key)
                 st.markdown('</div>', unsafe_allow_html=True)
 
     with st.form(key="add_product_form"):
@@ -317,7 +312,6 @@ st.markdown('### Current Inventory')
 df = force_all_columns_to_string(df)
 st.dataframe(clean_nans(df), width='stretch')
 
-# --- Download updated Excel and CSV ---
 output_excel = io.BytesIO()
 df.to_excel(output_excel, index=False)
 output_excel.seek(0)
@@ -336,7 +330,6 @@ st.download_button(
     mime="text/csv"
 )
 
-# --- Edit / Delete Product ---
 with st.expander("✏️ Edit or 🗑 Delete Products", expanded=st.session_state["edit_delete_expanded"]):
     if len(df) > 0:
         selected_row = st.selectbox(
@@ -361,7 +354,6 @@ with st.expander("✏️ Edit or 🗑 Delete Products", expanded=st.session_stat
                         value = product[header] if header in product else ""
                         show_value = clean_barcode(value) if header in [barcode_col, framecode_col] else value
                         unique_key = f"edit_textinput_{header}_{selected_row}"
-                        smart_suggestion = get_smart_default(header, df)
                         if header == barcode_col or header == framecode_col:
                             edit_values[header] = st.text_input(header, value=str(show_value), key=unique_key)
                         elif header.upper() == "SUPPLIER":
