@@ -199,9 +199,6 @@ headers = [h for h in columns if h.lower() != "timestamp"]
 
 st.title("Inventory Manager")
 
-if st.button("🏷️ Go to Barcode Label Printer"):
-    st.switch_page("pages/barcode_label_app.py")
-
 st.markdown("#### Generate Unique Barcodes")
 btn_col1, btn_col2 = st.columns(2)
 with btn_col1:
