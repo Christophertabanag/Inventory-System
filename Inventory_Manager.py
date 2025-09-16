@@ -1,57 +1,20 @@
 import streamlit as st
 import pandas as pd
 import numpy as np
-import os
-from datetime import datetime
 import random
 import barcode
 from barcode.writer import ImageWriter
 import io
-import subprocess  # <-- NEW import for git commands
+from datetime import datetime
 
 def clean_nans(df):
     df = df.replace([np.nan, pd.NA, 'nan'], '', regex=True)
     return df
 
-# --- Place your button styling CSS block here ---
-st.markdown("""
-    <style>
-    div.stButton > button {
-        background-color: #4CAF50 !important;
-        color: white !important;
-        border: none !important;
-        padding: 8px 24px !important;
-        border-radius: 4px !important;
-        font-weight: bold !important;
-    }
-    </style>
-""", unsafe_allow_html=True)
-
 def force_all_columns_to_string(df):
     for col in df.columns:
         df[col] = df[col].astype(str)
     return df
-
-INVENTORY_FILE = os.path.join(os.path.dirname(__file__), "inventory.xlsx")
-ARCHIVE_FILE = os.path.join(os.path.dirname(__file__), "archive_inventory.xlsx")  # Change if needed
-
-st.set_page_config(page_title="Inventory Manager", layout="wide")
-
-def load_inventory():
-    if os.path.exists(INVENTORY_FILE):
-        df = pd.read_excel(INVENTORY_FILE)
-        return df
-    else:
-        st.error("Inventory file not found. Please place 'inventory.xlsx' in the app directory.")
-        st.stop()
-
-def load_archive_inventory():
-    if os.path.exists(ARCHIVE_FILE):
-        df = pd.read_excel(ARCHIVE_FILE)
-        return df
-    else:
-        st.info("Archive inventory file not found.")
-        return pd.DataFrame()
 
 def clean_barcode(val):
     if pd.isnull(val):
@@ -134,18 +97,27 @@ VISIBLE_FIELDS = [
     "F COLOUR", "F GROUP", "SUPPLIER", "QUANTITY", "F TYPE", "TEMPLE", "DEPTH", "DIAG",
     "BASECURVE", "RRP", "EXCOSTPR", "COST PRICE", "TAXPC", "FRSTATUS", "AVAIL FROM", "NOTE"
 ]
-
 FREE_TEXT_FIELDS = [
     "PKEY", "F COLOUR", "F GROUP", "BASECURVE"
 ]
-
 F_TYPE_OPTIONS = ["MEN", "WOMEN", "KIDS", "UNISEX"]
 FRSTATUS_OPTIONS = ["CONSIGNMENT OWNED", "PRACTICE OWNED"]
 TAXPC_OPTIONS = [f"GST {i}%" for i in range(1, 21)]
 SIZE_OPTIONS = [f"{i:02d}-{j:02d}" for i in range(100) for j in range(100)]
 
+st.set_page_config(page_title="Inventory Manager", layout="wide")
+
+# --- Place your button styling CSS block here ---
 st.markdown("""
     <style>
+    div.stButton > button {
+        background-color: #4CAF50 !important;
+        color: white !important;
+        border: none !important;
+        padding: 8px 24px !important;
+        border-radius: 4px !important;
+        font-weight: bold !important;
+    }
     div[data-testid="column"] {
         padding-right: 4px !important;
         padding-left: 0px !important;
@@ -180,6 +152,27 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
+st.title("Inventory Manager")
+
+# --- Inventory file upload ---
+uploaded_file = st.file_uploader("Upload your inventory Excel file", type=["xlsx"])
+if uploaded_file is None:
+    st.warning("Please upload an Excel file to get started.")
+    st.stop()
+
+df = pd.read_excel(uploaded_file)
+df = force_all_columns_to_string(df)
+columns = list(df.columns)
+barcode_col = "BARCODE"
+framecode_col = "FRAME NO."
+
+if barcode_col not in columns or framecode_col not in columns:
+    st.error(f"Couldn't find '{barcode_col}' or '{framecode_col}' columns in your inventory file.")
+    st.write("Found columns:", columns)
+    st.stop()
+
+headers = [h for h in columns if h.lower() != "timestamp"]
+
 if "add_product_expanded" not in st.session_state:
     st.session_state["add_product_expanded"] = False
 if "barcode" not in st.session_state:
@@ -196,21 +189,6 @@ if "pending_delete_confirmed" not in st.session_state:
     st.session_state["pending_delete_confirmed"] = False
 if "supplier_for_framecode" not in st.session_state:
     st.session_state["supplier_for_framecode"] = ""
-
-df = load_inventory()
-archive_df = load_archive_inventory()
-columns = list(df.columns)
-barcode_col = "BARCODE"
-framecode_col = "FRAME NO."
-
-if barcode_col not in columns or framecode_col not in columns:
-    st.error(f"Couldn't find '{barcode_col}' or '{framecode_col}' columns in your inventory file.")
-    st.write("Found columns:", columns)
-    st.stop()
-
-headers = [h for h in columns if h.lower() != "timestamp"]
-
-st.title("Inventory Manager")
 
 st.markdown("#### Generate Unique Barcodes")
 btn_col1, btn_col2 = st.columns(2)
@@ -327,10 +305,8 @@ with st.expander("➕ Add a New Product", expanded=st.session_state["add_product
                 if "Timestamp" in df.columns:
                     new_row["Timestamp"] = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
                 df = pd.concat([df, pd.DataFrame([new_row])], ignore_index=True)
-                # Clean nans and force strings before saving
                 df = clean_nans(df)
                 df = force_all_columns_to_string(df)
-                df.to_excel(INVENTORY_FILE, index=False)
                 st.success(f"Product added successfully!")
                 st.session_state["barcode"] = ""
                 st.session_state["framecode"] = ""
@@ -338,70 +314,29 @@ with st.expander("➕ Add a New Product", expanded=st.session_state["add_product
                 st.rerun()
 
 st.markdown('### Current Inventory')
-
 df = force_all_columns_to_string(df)
 st.dataframe(clean_nans(df), width='stretch')
 
-download_excel = st.download_button(
-    label="⬇️ Download Excel)",
-    data=open(INVENTORY_FILE, "rb").read(),
-    file_name="inventory.xlsx",
+# --- Download updated Excel and CSV ---
+output_excel = io.BytesIO()
+df.to_excel(output_excel, index=False)
+output_excel.seek(0)
+st.download_button(
+    label="⬇️ Download Current Inventory (Excel)",
+    data=output_excel.getvalue(),
+    file_name="updated_inventory.xlsx",
     mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
 )
 
 csv_bytes = clean_nans(df).to_csv(index=False).encode('utf-8')
-download_csv = st.download_button(
+st.download_button(
     label="⬇️ Download (CSV)",
     data=csv_bytes,
-    file_name="inventory.csv",
+    file_name="updated_inventory.csv",
     mime="text/csv"
 )
-st.download_button(
-    label="⬇️ Download Main Inventory (Excel)",
-    data=open(INVENTORY_FILE, "rb").read(),
-    file_name="inventory.xlsx",
-    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-)
 
-# --- NEW BUTTON FOR MANUAL SAVE TO GITHUB ---
-def save_to_github(file_path, commit_message="Manual inventory save"):
-    try:
-        subprocess.run(["git", "add", file_path], check=True)
-        subprocess.run(["git", "commit", "-m", commit_message], check=True)
-        subprocess.run(["git", "push"], check=True)
-        st.sidebar.success("Inventory file successfully saved and pushed to GitHub!")
-    except Exception as e:
-        st.sidebar.error(f"Saving to GitHub failed: {e}")
-
-if st.sidebar.button("💾 Save Inventory"):
-    save_to_github(INVENTORY_FILE, commit_message="Manual inventory save")
-
-if not archive_df.empty:
-    archive_df = force_all_columns_to_string(archive_df)
-    st.markdown("### Archive Inventory")
-    st.dataframe(clean_nans(archive_df), width='stretch')
-    st.download_button(
-        label="⬇️ Download Archive Inventory (Excel)",
-        data=open(ARCHIVE_FILE, "rb").read(),
-        file_name="archive_inventory.xlsx",
-        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-    )
-    archive_csv_bytes = clean_nans(archive_df).to_csv(index=False).encode('utf-8')
-    st.download_button(
-        label="⬇️ Download Archive Inventory (CSV)",
-        data=archive_csv_bytes,
-        file_name="archive_inventory.csv",
-        mime="text/csv"
-    )
-    st.download_button(
-    label="⬇️ Download Archive Inventory (Excel)",
-    data=open(ARCHIVE_FILE, "rb").read(),
-    file_name="archive_inventory.xlsx",
-    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-)
-else:
-    st.info("No archive inventory file found to display or download.")
-
+# --- Edit / Delete Product ---
 with st.expander("✏️ Edit or 🗑 Delete Products", expanded=st.session_state["edit_delete_expanded"]):
     if len(df) > 0:
         selected_row = st.selectbox(
@@ -499,16 +434,13 @@ with st.expander("✏️ Edit or 🗑 Delete Products", expanded=st.session_stat
                                 df.at[selected_row, h] = ""
                         if "Timestamp" in df.columns:
                             df.at[selected_row, "Timestamp"] = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-                        # Clean nans and force strings before saving
                         df = clean_nans(df)
                         df = force_all_columns_to_string(df)
-                        df.to_excel(INVENTORY_FILE, index=False)
                         st.success("Product updated successfully!")
                         st.session_state["edit_delete_expanded"] = True
                         st.rerun()
                 if submit_delete:
                     st.session_state["pending_delete_index"] = selected_row
-
     else:
         st.info("No products in inventory yet.")
 
@@ -518,10 +450,8 @@ if st.session_state.get("pending_delete_index") is not None:
     with confirm_col:
         if st.button("Confirm Delete", key="confirm_delete_btn"):
             df = df.drop(st.session_state["pending_delete_index"]).reset_index(drop=True)
-            # Clean nans and force strings before saving
             df = clean_nans(df)
             df = force_all_columns_to_string(df)
-            df.to_excel(INVENTORY_FILE, index=False)
             st.success("Product deleted successfully!")
             st.session_state["edit_product_index"] = None
             st.session_state["edit_delete_expanded"] = True
@@ -533,15 +463,15 @@ if st.session_state.get("pending_delete_index") is not None:
 
 with st.expander("📦 Stock Count"):
     st.write("Upload a file (CSV, Excel, or TXT) of scanned barcodes from your stock count.")
-    uploaded_file = st.file_uploader("Upload scanned barcodes", type=["csv", "xlsx", "txt"])
-    if uploaded_file is not None:
+    uploaded_count_file = st.file_uploader("Upload scanned barcodes", type=["csv", "xlsx", "txt"], key="stock_count_upload")
+    if uploaded_count_file is not None:
         try:
-            if uploaded_file.name.endswith(".csv"):
-                scanned_df = pd.read_csv(uploaded_file)
-            elif uploaded_file.name.endswith(".xlsx"):
-                scanned_df = pd.read_excel(uploaded_file)
-            elif uploaded_file.name.endswith(".txt"):
-                scanned_df = pd.read_csv(uploaded_file, delimiter=None)
+            if uploaded_count_file.name.endswith(".csv"):
+                scanned_df = pd.read_csv(uploaded_count_file)
+            elif uploaded_count_file.name.endswith(".xlsx"):
+                scanned_df = pd.read_excel(uploaded_count_file)
+            elif uploaded_count_file.name.endswith(".txt"):
+                scanned_df = pd.read_csv(uploaded_count_file, delimiter=None)
             else:
                 st.error("Unsupported file type.")
                 scanned_df = None
@@ -558,12 +488,10 @@ with st.expander("📦 Stock Count"):
                 if "barcode" in col.lower() or "ean" in col.lower() or "upc" in col.lower() or "code" in col.lower()
             ]
             if not barcode_candidates:
-                barcode_candidates = scanned_df.columns.tolist()  # fallback to all columns
-
+                barcode_candidates = scanned_df.columns.tolist()
             barcode_column = st.selectbox(
                 "Select the column containing barcodes", barcode_candidates
             )
-
             inventory_barcodes = set(df[barcode_col].map(clean_barcode))
             scanned_barcodes = set(scanned_df[barcode_column].map(clean_barcode))
             matched = inventory_barcodes & scanned_barcodes
@@ -593,7 +521,6 @@ with st.expander("🔍 Quick Stock Check (Scan Barcode)"):
             st.success("Product found:")
             st.dataframe(clean_nans(matches), width='stretch')
             product = matches.iloc[0]
-
             barcode_value = product[barcode_col]
             barcode_img_buffer = generate_barcode_image(barcode_value)
             rrp = str(product.get("RRP", ""))
@@ -609,7 +536,6 @@ with st.expander("🔍 Quick Stock Check (Scan Barcode)"):
             manufact = str(product.get("MANUFACTURER", ""))
             fcolour = str(product.get("F COLOUR", ""))
             size = str(product.get("SIZE", ""))
-
             st.markdown('<div class="print-label-block">', unsafe_allow_html=True)
             if barcode_img_buffer:
                 st.image(barcode_img_buffer, width=220)
