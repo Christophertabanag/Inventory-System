@@ -13,6 +13,20 @@ def clean_nans(df):
     df = df.replace([np.nan, pd.NA, 'nan'], '', regex=True)
     return df
 
+# --- Place your button styling CSS block here ---
+st.markdown("""
+    <style>
+    div.stButton > button {
+        background-color: #4CAF50 !important;
+        color: white !important;
+        border: none !important;
+        padding: 8px 24px !important;
+        border-radius: 4px !important;
+        font-weight: bold !important;
+    }
+    </style>
+""", unsafe_allow_html=True)
+
 def force_all_columns_to_string(df):
     # Force every column to string to prevent ArrowTypeError
     for col in df.columns:
@@ -345,7 +359,12 @@ download_csv = st.download_button(
     file_name="inventory.csv",
     mime="text/csv"
 )
-
+st.download_button(
+    label="⬇️ Download Main Inventory (Excel)",
+    data=open(INVENTORY_FILE, "rb").read(),
+    file_name="inventory.xlsx",
+    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+)
 # --- SHOW ARCHIVE INVENTORY (if available) ---
 if not archive_df.empty:
     archive_df = force_all_columns_to_string(archive_df)
@@ -364,6 +383,12 @@ if not archive_df.empty:
         file_name="archive_inventory.csv",
         mime="text/csv"
     )
+    st.download_button(
+    label="⬇️ Download Archive Inventory (Excel)",
+    data=open(ARCHIVE_FILE, "rb").read(),
+    file_name="archive_inventory.xlsx",
+    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+)
 else:
     st.info("No archive inventory file found to display or download.")
 
