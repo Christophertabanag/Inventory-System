@@ -355,18 +355,18 @@ if not archive_df.empty:
     st.markdown("### Archive Inventory")
     st.dataframe(clean_nans(archive_df), width='stretch')
     st.download_button(
-    label="⬇️ Download Archive (Excel)",
-    data=open(ARCHIVE_FILE, "rb").read(),
-    file_name="archive_inventory.xlsx",
-    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-)
-archive_csv_bytes = clean_nans(archive_df).to_csv(index=False).encode('utf-8')
-st.download_button(
-    label="⬇️ Download Archive (CSV)",
-    data=archive_csv_bytes,
-    file_name="archive_inventory.csv",
-    mime="text/csv"
-)
+        label="⬇️ Download Archive Inventory (Excel)",
+        data=open(ARCHIVE_FILE, "rb").read(),
+        file_name="archive_inventory.xlsx",
+        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    )
+    archive_csv_bytes = clean_nans(archive_df).to_csv(index=False).encode('utf-8')
+    st.download_button(
+        label="⬇️ Download Archive Inventory (CSV)",
+        data=archive_csv_bytes,
+        file_name="archive_inventory.csv",
+        mime="text/csv"
+    )
 else:
     st.info("No archive inventory file found to display or download.")
 
