@@ -366,8 +366,6 @@ if not archive_df.empty:
     file_name="archive_inventory.xlsx",
     mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
 )
-else:
-    st.info("No archive inventory file found to display or download.")
 
 with st.expander("✏️ Edit or 🗑 Delete Products", expanded=st.session_state["edit_delete_expanded"]):
     if len(df) > 0:
