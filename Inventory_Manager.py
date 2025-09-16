@@ -258,12 +258,12 @@ with st.expander("➕ Add a New Product", expanded=st.session_state["add_product
                     input_values[header] = st.selectbox(header, FRSTATUS_OPTIONS, index=FRSTATUS_OPTIONS.index(default_status), key=unique_key)
                 elif header.upper() in ["TEMPLE", "DEPTH", "DIAG", "RRP", "EXCOSTPR", "COST PRICE"]:
                     input_values[header] = st.text_input(header, value=smart_suggestion, key=unique_key)
-                elif header.upper() == "AVAIL FROM":
-    date_val = datetime.now().date()
-    input_values[header] = st.date_input(header, value=date_val, key=unique_key)
+                elif header.upper() == "TAXPC":
+                    default_tax = smart_suggestion if smart_suggestion in TAXPC_OPTIONS else TAXPC_OPTIONS[9]
+                    input_values[header] = st.selectbox(header, TAXPC_OPTIONS, index=max(0, TAXPC_OPTIONS.index(default_tax)), key=unique_key)
                elif header.upper() == "AVAIL FROM":
-                    date_val = datetime.now().date()
-                    input_values[header] = st.date_input(header, value=date_val, key=unique_key)
+                date_val = datetime.now().date()
+                input_values[header] = st.date_input(header, value=date_val, key=unique_key)
                 elif header.upper() == "NOTE":
                     input_values[header] = st.text_input(header, value=smart_suggestion, key=unique_key)
                 else:
