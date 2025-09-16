@@ -8,15 +8,15 @@ import barcode
 from barcode.writer import ImageWriter
 import io
 
-INVENTORY_FILE = os.path.join(os.path.dirname(__file__), "inventory.xlsx")
-ARCHIVE_FILE = os.path.join(os.path.dirname(__file__), "archive_inventory.xlsx")  # Change if needed
-
-st.set_page_config(page_title="Inventory Manager", layout="wide")
-
 def clean_nans(df):
     # Replace np.nan, pd.NA, and 'nan' string with empty string
     df = df.replace([np.nan, pd.NA, 'nan'], '', regex=True)
     return df
+
+INVENTORY_FILE = os.path.join(os.path.dirname(__file__), "inventory.xlsx")
+ARCHIVE_FILE = os.path.join(os.path.dirname(__file__), "archive_inventory.xlsx")  # Change if needed
+
+st.set_page_config(page_title="Inventory Manager", layout="wide")
 
 def load_inventory():
     if os.path.exists(INVENTORY_FILE):
