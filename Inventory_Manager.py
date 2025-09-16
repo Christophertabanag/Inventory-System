@@ -1,11 +1,17 @@
 import streamlit as st
 import pandas as pd
+import numpy as np
 import os
 from datetime import datetime
 import random
 import barcode
 from barcode.writer import ImageWriter
 import io
+
+def clean_nans(df):
+    # Replace np.nan, pd.NA, and 'nan' string with empty string
+    df = df.replace([np.nan, pd.NA, 'nan'], '', regex=True)
+    return df
 
 INVENTORY_FILE = os.path.join(os.path.dirname(__file__), "inventory.xlsx")
 ARCHIVE_FILE = os.path.join(os.path.dirname(__file__), "archive_inventory.xlsx")  # Change if needed
