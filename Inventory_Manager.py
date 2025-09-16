@@ -370,8 +370,6 @@ if not archive_df.empty:
 else:
     st.info("No archive inventory file found to display or download.")
 
-st.dataframe(clean_nans(df), width='stretch')  # Replaces use_container_width
-
 with st.expander("✏️ Edit or 🗑 Delete Products", expanded=st.session_state["edit_delete_expanded"]):
     if len(df) > 0:
         selected_row = st.selectbox(
