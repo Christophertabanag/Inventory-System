@@ -70,6 +70,7 @@ st.set_page_config(page_title="Inventory Manager", layout="wide")
 def load_inventory():
     if os.path.exists(INVENTORY_FILE):
         df = pd.read_excel(INVENTORY_FILE)
+        df = force_all_columns_to_string(df)  # Ensure all columns are string type!
         return df
     else:
         st.error("Inventory file not found. Please place 'inventory.xlsx' in the app directory.")
@@ -78,9 +79,9 @@ def load_inventory():
 def load_archive_inventory():
     if os.path.exists(ARCHIVE_FILE):
         df = pd.read_excel(ARCHIVE_FILE)
+        df = force_all_columns_to_string(df)  # Ensure all columns are string type!
         return df
     else:
-        st.info("Archive inventory file not found.")
         return pd.DataFrame()
 
 def clean_barcode(val):
@@ -345,30 +346,25 @@ with col2:
         mime="text/csv"
     )
 
-
 if not archive_df.empty:
-    archive_df = force_all_columns_to_string(archive_df)
     st.markdown("### Archive Inventory")
     st.dataframe(clean_nans(archive_df), width='stretch')
-    st.download_button(
-        label="⬇️ Download Archive Inventory (Excel)",
-        data=open(ARCHIVE_FILE, "rb").read(),
-        file_name="archive_inventory.xlsx",
-        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-    )
-    archive_csv_bytes = clean_nans(archive_df).to_csv(index=False).encode('utf-8')
-    st.download_button(
-        label="⬇️ Download Archive Inventory (CSV)",
-        data=archive_csv_bytes,
-        file_name="archive_inventory.csv",
-        mime="text/csv"
-    )
-    st.download_button(
-    label="⬇️ Download Archive Inventory (Excel)",
-    data=open(ARCHIVE_FILE, "rb").read(),
-    file_name="archive_inventory.xlsx",
-    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-)
+    arch_col1, arch_col2 = st.columns([1, 1])
+    with arch_col1:
+        st.download_button(
+            label="📄 Archive Excel",
+            data=open(ARCHIVE_FILE, "rb").read(),
+            file_name="archive_inventory.xlsx",
+            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        )
+    with arch_col2:
+        archive_csv_bytes = clean_nans(archive_df).to_csv(index=False).encode('utf-8')
+        st.download_button(
+            label="🗂️ Archive CSV",
+            data=archive_csv_bytes,
+            file_name="archive_inventory.csv",
+            mime="text/csv"
+        )
 
 with st.expander("✏️ Edit or 🗑 Delete Products", expanded=st.session_state["edit_delete_expanded"]):
     if len(df) > 0:
