@@ -258,15 +258,13 @@ with st.expander("➕ Add a New Product", expanded=st.session_state["add_product
                 unique_key = f"textinput_{header}"
                 smart_suggestion = get_smart_default(header, df)
                 label = f"{header} <span class='required-label'>*</span>" if header in required_fields else header
-                # Autofocus only on the first visible field
-                autofocus = (row_idx == 0 and idx == 0)
                 if header == barcode_col:
                     input_values[header] = st.text_input(
-                        label, value=st.session_state["barcode"], key=unique_key, help="Unique product barcode", autofocus=autofocus
+                        label, value=st.session_state["barcode"], key=unique_key, help="Unique product barcode"
                     )
                 elif header == framecode_col:
                     input_values[header] = st.text_input(
-                        label, value=st.session_state["framecode"], key=unique_key, help="Unique product frame code", autofocus=autofocus
+                        label, value=st.session_state["framecode"], key=unique_key, help="Unique product frame code"
                     )
                 elif header.upper() == "SUPPLIER":
                     input_values[header] = st.text_input(header, value=st.session_state.get("supplier_for_framecode", ""), key=unique_key)
@@ -411,9 +409,8 @@ with st.expander("✏️ Edit or 🗑 Delete Products", expanded=st.session_stat
                         unique_key = f"edit_textinput_{header}_{selected_row}"
                         smart_suggestion = get_smart_default(header, df)
                         label = f"{header} <span class='required-label'>*</span>" if header in required_fields else header
-                        autofocus = (row_idx == 0 and idx == 0)
                         if header == barcode_col or header == framecode_col:
-                            edit_values[header] = st.text_input(label, value=str(show_value), key=unique_key, autofocus=autofocus)
+                            edit_values[header] = st.text_input(label, value=str(show_value), key=unique_key)
                         elif header.upper() == "SUPPLIER":
                             edit_values[header] = st.text_input(header, value=str(show_value), key=unique_key)
                         elif header.lower() == "model":
