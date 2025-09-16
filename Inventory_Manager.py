@@ -13,6 +13,12 @@ def clean_nans(df):
     df = df.replace([np.nan, pd.NA, 'nan'], '', regex=True)
     return df
 
+def force_all_columns_to_string(df):
+    # Force every column to string to prevent ArrowTypeError
+    for col in df.columns:
+        df[col] = df[col].astype(str)
+    return df
+
 INVENTORY_FILE = os.path.join(os.path.dirname(__file__), "inventory.xlsx")
 ARCHIVE_FILE = os.path.join(os.path.dirname(__file__), "archive_inventory.xlsx")  # Change if needed
 
@@ -311,6 +317,9 @@ with st.expander("➕ Add a New Product", expanded=st.session_state["add_product
                 if "Timestamp" in df.columns:
                     new_row["Timestamp"] = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
                 df = pd.concat([df, pd.DataFrame([new_row])], ignore_index=True)
+                # Clean nans and force strings before saving
+                df = clean_nans(df)
+                df = force_all_columns_to_string(df)
                 df.to_excel(INVENTORY_FILE, index=False)
                 st.success(f"Product added successfully!")
                 st.session_state["barcode"] = ""
@@ -320,14 +329,8 @@ with st.expander("➕ Add a New Product", expanded=st.session_state["add_product
 
 st.markdown('### Current Inventory')
 
-# --- FIX: Convert problematic columns to string before displaying ---
-for col in [framecode_col, barcode_col]:
-    if col in df.columns:
-        df[col] = df[col].astype(str)
-for col in df.columns:
-    if df[col].dtype == 'object':
-        df[col] = df[col].astype(str)
-
+# --- Force all columns to string before displaying ---
+df = force_all_columns_to_string(df)
 st.dataframe(clean_nans(df), width='stretch')
 
 # --- DOWNLOAD BUTTON FOR MAIN INVENTORY ---
@@ -341,8 +344,9 @@ with open(INVENTORY_FILE, "rb") as f:
 
 # --- SHOW ARCHIVE INVENTORY (if available) ---
 if not archive_df.empty:
+    archive_df = force_all_columns_to_string(archive_df)
     st.markdown("### Archive Inventory")
-    st.dataframe(archive_df, width='stretch')
+    st.dataframe(clean_nans(archive_df), width='stretch')
     with open(ARCHIVE_FILE, "rb") as f:
         st.download_button(
             label="⬇️ Download Archive Inventory (Excel)",
@@ -353,20 +357,7 @@ if not archive_df.empty:
 else:
     st.info("No archive inventory file found to display or download.")
 
-# --- The rest of your script remains unchanged ---
-# ... (editing, deleting, stock count, quick check, etc.) ...
-
-# --- FIX: Convert problematic columns to string before displaying ---
-for col in [framecode_col, barcode_col]:
-    if col in df.columns:
-        df[col] = df[col].astype(str)
-        
-# --- FIX: Convert all object columns to strings before displaying ---
-for col in df.columns:
-    if df[col].dtype == 'object':
-        df[col] = df[col].astype(str)
-        
-st.dataframe(df, width='stretch')  # Replaces use_container_width
+st.dataframe(clean_nans(df), width='stretch')  # Replaces use_container_width
 
 with st.expander("✏️ Edit or 🗑 Delete Products", expanded=st.session_state["edit_delete_expanded"]):
     if len(df) > 0:
@@ -465,6 +456,9 @@ with st.expander("✏️ Edit or 🗑 Delete Products", expanded=st.session_stat
                                 df.at[selected_row, h] = ""
                         if "Timestamp" in df.columns:
                             df.at[selected_row, "Timestamp"] = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+                        # Clean nans and force strings before saving
+                        df = clean_nans(df)
+                        df = force_all_columns_to_string(df)
                         df.to_excel(INVENTORY_FILE, index=False)
                         st.success("Product updated successfully!")
                         st.session_state["edit_delete_expanded"] = True
@@ -481,6 +475,9 @@ if st.session_state.get("pending_delete_index") is not None:
     with confirm_col:
         if st.button("Confirm Delete", key="confirm_delete_btn"):
             df = df.drop(st.session_state["pending_delete_index"]).reset_index(drop=True)
+            # Clean nans and force strings before saving
+            df = clean_nans(df)
+            df = force_all_columns_to_string(df)
             df.to_excel(INVENTORY_FILE, index=False)
             st.success("Product deleted successfully!")
             st.session_state["edit_product_index"] = None
@@ -510,8 +507,9 @@ with st.expander("📦 Stock Count"):
             scanned_df = None
 
         if scanned_df is not None:
+            scanned_df = force_all_columns_to_string(scanned_df)
             st.write("Preview of your uploaded file:")
-            st.dataframe(scanned_df.head(), width='stretch')
+            st.dataframe(clean_nans(scanned_df.head()), width='stretch')
             barcode_candidates = [
                 col for col in scanned_df.columns
                 if "barcode" in col.lower() or "ean" in col.lower() or "upc" in col.lower() or "code" in col.lower()
@@ -533,10 +531,10 @@ with st.expander("📦 Stock Count"):
             st.error(f"Unexpected items: {len(unexpected)}")
             if matched:
                 st.write("✅ Present items:")
-                st.dataframe(df[df[barcode_col].map(clean_barcode).isin(matched)], width='stretch')
+                st.dataframe(clean_nans(df[df[barcode_col].map(clean_barcode).isin(matched)]), width='stretch')
             if missing:
                 st.write("❌ Missing items:")
-                st.dataframe(df[df[barcode_col].map(clean_barcode).isin(missing)], width='stretch')
+                st.dataframe(clean_nans(df[df[barcode_col].map(clean_barcode).isin(missing)]), width='stretch')
             if unexpected:
                 st.write("⚠️ Unexpected items (not in system):")
                 st.write(list(unexpected))
@@ -548,8 +546,9 @@ with st.expander("🔍 Quick Stock Check (Scan Barcode)"):
         cleaned_input = clean_barcode(scanned_barcode)
         matches = df[df[barcode_col].map(clean_barcode) == cleaned_input]
         if not matches.empty:
+            matches = force_all_columns_to_string(matches)
             st.success("Product found:")
-            st.dataframe(matches, width='stretch')
+            st.dataframe(clean_nans(matches), width='stretch')
             product = matches.iloc[0]
 
             barcode_value = product[barcode_col]
