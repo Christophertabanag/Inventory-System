@@ -63,7 +63,6 @@ def force_all_columns_to_string(df):
     return df
 
 INVENTORY_FOLDER = os.path.join(os.path.dirname(__file__), "Inventory")
-# List all .xlsx and .csv files in the folder
 inventory_files = [f for f in os.listdir(INVENTORY_FOLDER) if f.lower().endswith(('.xlsx', '.csv'))]
 
 if not inventory_files:
@@ -72,9 +71,8 @@ if not inventory_files:
 
 selected_file = inventory_files[0]
 if len(inventory_files) > 1:
-    selected_file = st.sidebar.selectbox("Select inventory file to use:", inventory_files)
-else:
-    st.sidebar.write(f"Using inventory file: {selected_file}")
+    selected_file = st.selectbox("Select inventory file to use:", inventory_files)
+# No sidebar text displayed
 
 INVENTORY_FILE = os.path.join(INVENTORY_FOLDER, selected_file)
 
@@ -269,7 +267,11 @@ with st.expander("➕ Add a New Product", expanded=st.session_state["add_product
                 st.markdown('<div class="compact-form">', unsafe_allow_html=True)
                 unique_key = f"textinput_{header}"
                 smart_suggestion = get_smart_default(header, df)
-                label = f"{header} <span class='required-label'>*</span>" if header in required_fields else header
+                # For BARCODE and FRAME NO., do NOT add required label markup
+                if header in [barcode_col, framecode_col]:
+                    label = header
+                else:
+                    label = f"{header} <span class='required-label'>*</span>" if header in required_fields else header
                 if header == barcode_col:
                     input_values[header] = st.text_input(
                         label, value=st.session_state["barcode"], key=unique_key, help="Unique product barcode"
@@ -344,10 +346,8 @@ with st.expander("➕ Add a New Product", expanded=st.session_state["add_product
                 if "Timestamp" in df.columns:
                     new_row["Timestamp"] = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
                 df = pd.concat([df, pd.DataFrame([new_row])], ignore_index=True)
-                # Clean nans and force strings before saving
                 df = clean_nans(df)
                 df = force_all_columns_to_string(df)
-                # Save using the correct method for file type
                 if INVENTORY_FILE.lower().endswith('.xlsx'):
                     df.to_excel(INVENTORY_FILE, index=False)
                 else:
@@ -432,7 +432,11 @@ with st.expander("✏️ Edit or 🗑 Delete Products", expanded=st.session_stat
                         show_value = clean_barcode(value) if header in [barcode_col, framecode_col] else value
                         unique_key = f"edit_textinput_{header}_{selected_row}"
                         smart_suggestion = get_smart_default(header, df)
-                        label = f"{header} <span class='required-label'>*</span>" if header in required_fields else header
+                        # For BARCODE and FRAME NO., do NOT add required label markup
+                        if header in [barcode_col, framecode_col]:
+                            label = header
+                        else:
+                            label = f"{header} <span class='required-label'>*</span>" if header in required_fields else header
                         if header == barcode_col or header == framecode_col:
                             edit_values[header] = st.text_input(label, value=str(show_value), key=unique_key)
                         elif header.upper() == "SUPPLIER":
@@ -505,7 +509,6 @@ with st.expander("✏️ Edit or 🗑 Delete Products", expanded=st.session_stat
                                 df.at[selected_row, h] = ""
                         if "Timestamp" in df.columns:
                             df.at[selected_row, "Timestamp"] = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-                        # Clean nans and force strings before saving
                         df = clean_nans(df)
                         df = force_all_columns_to_string(df)
                         if INVENTORY_FILE.lower().endswith('.xlsx'):
