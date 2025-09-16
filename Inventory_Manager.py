@@ -325,23 +325,25 @@ with st.expander("➕ Add a New Product", expanded=st.session_state["add_product
 
 st.markdown('### Current Inventory')
 
-df = force_all_columns_to_string(df)
+# Icon-based download buttons in a row
+col1, col2 = st.columns([1, 1])
+with col1:
+    st.download_button(
+        label="📄 Excel",
+        data=open(INVENTORY_FILE, "rb").read(),
+        file_name="inventory.xlsx",
+        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    )
+with col2:
+    st.download_button(
+        label="🗂️ CSV",
+        data=clean_nans(df).to_csv(index=False).encode('utf-8'),
+        file_name="inventory.csv",
+        mime="text/csv"
+    )
+
+# Display the inventory table
 st.dataframe(clean_nans(df), width='stretch')
-
-download_excel = st.download_button(
-    label="⬇️ Download (Excel)",
-    data=open(INVENTORY_FILE, "rb").read(),
-    file_name="inventory.xlsx",
-    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-)
-
-csv_bytes = clean_nans(df).to_csv(index=False).encode('utf-8')
-download_csv = st.download_button(
-    label="⬇️ Download (CSV)",
-    data=csv_bytes,
-    file_name="inventory.csv",
-    mime="text/csv"
-)
 
 if not archive_df.empty:
     archive_df = force_all_columns_to_string(archive_df)
