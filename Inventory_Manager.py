@@ -54,6 +54,10 @@ st.markdown("""
         box-shadow: none !important;
         background: transparent !important;
     }
+    .required-label {
+        color: red !important;
+        font-weight: bold !important;
+    }
     </style>
 """, unsafe_allow_html=True)
 
@@ -66,6 +70,12 @@ INVENTORY_FILE = os.path.join(os.path.dirname(__file__), "inventory.xlsx")
 ARCHIVE_FILE = os.path.join(os.path.dirname(__file__), "archive_inventory.xlsx")  # Change if needed
 
 st.set_page_config(page_title="Inventory Manager", layout="wide")
+
+# --- Security: Logout Button Placeholder ---
+st.sidebar.header("Session")
+if st.sidebar.button("Logout"):
+    st.sidebar.success("Session ended. Please close the browser window.")
+    st.stop()
 
 def load_inventory():
     if os.path.exists(INVENTORY_FILE):
@@ -189,6 +199,8 @@ if "pending_delete_confirmed" not in st.session_state:
     st.session_state["pending_delete_confirmed"] = False
 if "supplier_for_framecode" not in st.session_state:
     st.session_state["supplier_for_framecode"] = ""
+if "last_deleted_product" not in st.session_state:
+    st.session_state["last_deleted_product"] = None
 
 df = load_inventory()
 archive_df = load_archive_inventory()
@@ -223,7 +235,7 @@ with btn_col2:
             st.session_state["framecode"] = generate_framecode(st.session_state["supplier_for_framecode"], df)
             st.session_state["add_product_expanded"] = True
         else:
-            st.warning("Please enter a supplier name first.")
+            st.warning("⚠️ Please enter a supplier name first.")
 
 if st.session_state["barcode"]:
     st.markdown("#### Barcode Image")
@@ -237,17 +249,25 @@ with st.expander("➕ Add a New Product", expanded=st.session_state["add_product
     visible_headers = [h for h in VISIBLE_FIELDS if h in headers]
     header_rows = [visible_headers[i:i+n_cols] for i in range(0, len(visible_headers), n_cols)]
     st.markdown("**Enter New Product Details:**")
-    for row in header_rows:
+    required_fields = [barcode_col, framecode_col]
+    for row_idx, row in enumerate(header_rows):
         cols = st.columns(len(row), gap="small")
         for idx, header in enumerate(row):
             with cols[idx]:
                 st.markdown('<div class="compact-form">', unsafe_allow_html=True)
                 unique_key = f"textinput_{header}"
                 smart_suggestion = get_smart_default(header, df)
+                label = f"{header} <span class='required-label'>*</span>" if header in required_fields else header
+                # Autofocus only on the first visible field
+                autofocus = (row_idx == 0 and idx == 0)
                 if header == barcode_col:
-                    input_values[header] = st.text_input(header, value=st.session_state["barcode"], key=unique_key)
+                    input_values[header] = st.text_input(
+                        label, value=st.session_state["barcode"], key=unique_key, help="Unique product barcode", autofocus=autofocus
+                    )
                 elif header == framecode_col:
-                    input_values[header] = st.text_input(header, value=st.session_state["framecode"], key=unique_key)
+                    input_values[header] = st.text_input(
+                        label, value=st.session_state["framecode"], key=unique_key, help="Unique product frame code", autofocus=autofocus
+                    )
                 elif header.upper() == "SUPPLIER":
                     input_values[header] = st.text_input(header, value=st.session_state.get("supplier_for_framecode", ""), key=unique_key)
                 elif header.lower() == "model":
@@ -296,11 +316,11 @@ with st.expander("➕ Add a New Product", expanded=st.session_state["add_product
             df_barcodes_cleaned = df[barcode_col].map(clean_barcode)
             df_framecodes_cleaned = df[framecode_col].map(clean_barcode)
             if missing:
-                st.warning(f"{', '.join(missing)} are required.")
+                st.warning(f"⚠️ {', '.join(missing)} are required.")
             elif barcode_cleaned in df_barcodes_cleaned.values:
-                st.error("This barcode already exists in inventory!")
+                st.error("❌ This barcode already exists in inventory!")
             elif framecode_cleaned in df_framecodes_cleaned.values:
-                st.error("This framecode already exists in inventory!")
+                st.error("❌ This framecode already exists in inventory!")
             else:
                 new_row = {}
                 for col in headers:
@@ -318,7 +338,7 @@ with st.expander("➕ Add a New Product", expanded=st.session_state["add_product
                 df = clean_nans(df)
                 df = force_all_columns_to_string(df)
                 df.to_excel(INVENTORY_FILE, index=False)
-                st.success(f"Product added successfully!")
+                st.success(f"✅ Product added successfully!")
                 st.session_state["barcode"] = ""
                 st.session_state["framecode"] = ""
                 st.session_state["add_product_expanded"] = False
@@ -326,10 +346,8 @@ with st.expander("➕ Add a New Product", expanded=st.session_state["add_product
 
 st.markdown('### Current Inventory')
 
-# Display the inventory table FIRST
 st.dataframe(clean_nans(df), width='stretch')
 
-# Then, place the download buttons in a row below the table
 col1, col2 = st.columns([1, 1])
 with col1:
     st.download_button(
@@ -382,7 +400,8 @@ with st.expander("✏️ Edit or 🗑 Delete Products", expanded=st.session_stat
             visible_headers = [h for h in VISIBLE_FIELDS if h in headers]
             header_rows = [visible_headers[i:i+n_cols] for i in range(0, len(visible_headers), n_cols)]
             st.markdown("**Edit Product Details**")
-            for row in header_rows:
+            required_fields = [barcode_col, framecode_col]
+            for row_idx, row in enumerate(header_rows):
                 cols = st.columns(len(row), gap="small")
                 for idx, header in enumerate(row):
                     with cols[idx]:
@@ -391,8 +410,10 @@ with st.expander("✏️ Edit or 🗑 Delete Products", expanded=st.session_stat
                         show_value = clean_barcode(value) if header in [barcode_col, framecode_col] else value
                         unique_key = f"edit_textinput_{header}_{selected_row}"
                         smart_suggestion = get_smart_default(header, df)
+                        label = f"{header} <span class='required-label'>*</span>" if header in required_fields else header
+                        autofocus = (row_idx == 0 and idx == 0)
                         if header == barcode_col or header == framecode_col:
-                            edit_values[header] = st.text_input(header, value=str(show_value), key=unique_key)
+                            edit_values[header] = st.text_input(label, value=str(show_value), key=unique_key, autofocus=autofocus)
                         elif header.upper() == "SUPPLIER":
                             edit_values[header] = st.text_input(header, value=str(show_value), key=unique_key)
                         elif header.lower() == "model":
@@ -449,9 +470,9 @@ with st.expander("✏️ Edit or 🗑 Delete Products", expanded=st.session_stat
                     duplicate_barcode = (df_barcodes_cleaned == edit_barcode_cleaned) & (df.index != selected_row)
                     duplicate_framecode = (df_framecodes_cleaned == edit_framecode_cleaned) & (df.index != selected_row)
                     if duplicate_barcode.any():
-                        st.error("Another product with this barcode already exists!")
+                        st.error("❌ Another product with this barcode already exists!")
                     elif duplicate_framecode.any():
-                        st.error("Another product with this framecode already exists!")
+                        st.error("❌ Another product with this framecode already exists!")
                     else:
                         for h in headers:
                             if h in edit_values:
@@ -467,26 +488,27 @@ with st.expander("✏️ Edit or 🗑 Delete Products", expanded=st.session_stat
                         df = clean_nans(df)
                         df = force_all_columns_to_string(df)
                         df.to_excel(INVENTORY_FILE, index=False)
-                        st.success("Product updated successfully!")
+                        st.success("✅ Product updated successfully!")
                         st.session_state["edit_delete_expanded"] = True
                         st.rerun()
                 if submit_delete:
+                    # Save deleted product in session state for undo
+                    st.session_state["last_deleted_product"] = product.to_dict()
                     st.session_state["pending_delete_index"] = selected_row
 
     else:
-        st.info("No products in inventory yet.")
+        st.info("ℹ️ No products in inventory yet.")
 
 if st.session_state.get("pending_delete_index") is not None:
-    st.warning(f"Are you sure you want to delete product with barcode '{clean_barcode(df.at[st.session_state['pending_delete_index'], barcode_col])}' and framecode '{clean_barcode(df.at[st.session_state['pending_delete_index'], framecode_col])}'?")
+    st.warning(f"⚠️ Are you sure you want to delete product with barcode '{clean_barcode(df.at[st.session_state['pending_delete_index'], barcode_col])}' and framecode '{clean_barcode(df.at[st.session_state['pending_delete_index'], framecode_col])}'?")
     confirm_col, cancel_col = st.columns(2)
     with confirm_col:
         if st.button("Confirm Delete", key="confirm_delete_btn"):
             df = df.drop(st.session_state["pending_delete_index"]).reset_index(drop=True)
-            # Clean nans and force strings before saving
             df = clean_nans(df)
             df = force_all_columns_to_string(df)
             df.to_excel(INVENTORY_FILE, index=False)
-            st.success("Product deleted successfully!")
+            st.success("✅ Product deleted successfully! You can undo below.")
             st.session_state["edit_product_index"] = None
             st.session_state["edit_delete_expanded"] = True
             st.session_state["pending_delete_index"] = None
@@ -495,22 +517,33 @@ if st.session_state.get("pending_delete_index") is not None:
         if st.button("Cancel", key="cancel_delete_btn"):
             st.session_state["pending_delete_index"] = None
 
+# Undo for last delete
+if st.session_state.get("last_deleted_product") is not None:
+    st.info("🕑 You deleted a product. Undo?")
+    if st.button("Undo Delete"):
+        df = pd.concat([df, pd.DataFrame([st.session_state["last_deleted_product"]])], ignore_index=True)
+        df.to_excel(INVENTORY_FILE, index=False)
+        st.session_state["last_deleted_product"] = None
+        st.success("✅ Deletion undone!")
+        st.rerun()
+
 with st.expander("📦 Stock Count"):
     st.write("Upload a file (CSV, Excel, or TXT) of scanned barcodes from your stock count.")
     uploaded_file = st.file_uploader("Upload scanned barcodes", type=["csv", "xlsx", "txt"])
     if uploaded_file is not None:
         try:
-            if uploaded_file.name.endswith(".csv"):
-                scanned_df = pd.read_csv(uploaded_file)
-            elif uploaded_file.name.endswith(".xlsx"):
-                scanned_df = pd.read_excel(uploaded_file)
-            elif uploaded_file.name.endswith(".txt"):
-                scanned_df = pd.read_csv(uploaded_file, delimiter=None)
-            else:
-                st.error("Unsupported file type.")
-                scanned_df = None
+            with st.spinner("🔄 Reading file..."):
+                if uploaded_file.name.endswith(".csv"):
+                    scanned_df = pd.read_csv(uploaded_file)
+                elif uploaded_file.name.endswith(".xlsx"):
+                    scanned_df = pd.read_excel(uploaded_file)
+                elif uploaded_file.name.endswith(".txt"):
+                    scanned_df = pd.read_csv(uploaded_file, delimiter=None)
+                else:
+                    st.error("❌ Unsupported file type.")
+                    scanned_df = None
         except Exception as e:
-            st.error(f"Error reading file: {e}")
+            st.error(f"❌ Error reading file: {e}")
             scanned_df = None
 
         if scanned_df is not None:
@@ -533,9 +566,9 @@ with st.expander("📦 Stock Count"):
             matched = inventory_barcodes & scanned_barcodes
             missing = inventory_barcodes - scanned_barcodes
             unexpected = scanned_barcodes - inventory_barcodes
-            st.success(f"Matched items: {len(matched)}")
-            st.warning(f"Missing items: {len(missing)}")
-            st.error(f"Unexpected items: {len(unexpected)}")
+            st.success(f"✅ Matched items: {len(matched)}")
+            st.warning(f"⚠️ Missing items: {len(missing)}")
+            st.error(f"❌ Unexpected items: {len(unexpected)}")
             if matched:
                 st.write("✅ Present items:")
                 st.dataframe(clean_nans(df[df[barcode_col].map(clean_barcode).isin(matched)]), width='stretch')
@@ -554,7 +587,7 @@ with st.expander("🔍 Quick Stock Check (Scan Barcode)"):
         matches = df[df[barcode_col].map(clean_barcode) == cleaned_input]
         if not matches.empty:
             matches = force_all_columns_to_string(matches)
-            st.success("Product found:")
+            st.success("✅ Product found:")
             st.dataframe(clean_nans(matches), width='stretch')
             product = matches.iloc[0]
             barcode_value = product[barcode_col]
@@ -586,4 +619,4 @@ with st.expander("🔍 Quick Stock Check (Scan Barcode)"):
             st.markdown(f'Size: {size}', unsafe_allow_html=True)
             st.markdown('</div></div>', unsafe_allow_html=True)
         else:
-            st.error("Barcode not found in inventory.")
+            st.error("❌ Barcode not found in inventory.")
