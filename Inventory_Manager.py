@@ -329,7 +329,7 @@ df = force_all_columns_to_string(df)
 st.dataframe(clean_nans(df), width='stretch')
 
 download_excel = st.download_button(
-    label="⬇️ Download Excel)",
+    label="⬇️ Download (Excel)",
     data=open(INVENTORY_FILE, "rb").read(),
     file_name="inventory.xlsx",
     mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
@@ -341,12 +341,6 @@ download_csv = st.download_button(
     data=csv_bytes,
     file_name="inventory.csv",
     mime="text/csv"
-)
-st.download_button(
-    label="⬇️ Download Main Inventory (Excel)",
-    data=open(INVENTORY_FILE, "rb").read(),
-    file_name="inventory.xlsx",
-    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
 )
 
 if not archive_df.empty:
