@@ -146,6 +146,16 @@ st.markdown("""
         box-shadow: none !important;
         background: transparent !important;
     }
+    /* DataFrame styling for clean look */
+    .dataframe th, .dataframe td {
+        border: none !important;
+        background-color: #fff !important;
+        font-size: 15px !important;
+        padding: 10px 8px !important;
+    }
+    .dataframe {
+        border: none !important;
+    }
     </style>
 """, unsafe_allow_html=True)
 
@@ -224,7 +234,6 @@ with st.expander("➕ Add a New Product", expanded=st.session_state["add_product
             with cols[idx]:
                 st.markdown('<div class="compact-form">', unsafe_allow_html=True)
                 unique_key = f"textinput_{header}"
-                # --------- DEFAULTS FOR EACH FIELD ----------
                 if header == barcode_col:
                     input_values[header] = st.text_input(header, value=st.session_state["barcode"], key=unique_key)
                 elif header == framecode_col:
@@ -310,7 +319,8 @@ with st.expander("➕ Add a New Product", expanded=st.session_state["add_product
 
 st.markdown('### Current Inventory')
 df = force_all_columns_to_string(df)
-st.dataframe(clean_nans(df), width='stretch')
+# Show DataFrame styled to look clean and modern
+st.dataframe(df.style.hide(axis="index"))
 
 output_excel = io.BytesIO()
 df.to_excel(output_excel, index=False)
