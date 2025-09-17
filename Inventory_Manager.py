@@ -72,7 +72,6 @@ if not inventory_files:
 selected_file = inventory_files[0]
 if len(inventory_files) > 1:
     selected_file = st.selectbox("Select inventory file to use:", inventory_files)
-# No sidebar text displayed
 
 INVENTORY_FILE = os.path.join(INVENTORY_FOLDER, selected_file)
 
@@ -362,39 +361,45 @@ st.markdown('### Current Inventory')
 
 st.dataframe(clean_nans(df), width='stretch')
 
+# ---- Custom Download Naming Logic ----
+download_date_str = datetime.now().strftime("%Y-%m-%d")
+custom_download_name = f"fil-{selected_file.split('.')[0]}_{download_date_str}-downloaded"
+
 col1, col2 = st.columns([1, 1])
 with col1:
     if INVENTORY_FILE.lower().endswith('.xlsx'):
         st.download_button(
             label="📄 Excel",
             data=open(INVENTORY_FILE, "rb").read(),
-            file_name=selected_file,
+            file_name=f"{custom_download_name}.xlsx",
             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
         )
     else:
         st.download_button(
             label="📄 CSV",
             data=open(INVENTORY_FILE, "rb").read(),
-            file_name=selected_file,
+            file_name=f"{custom_download_name}.csv",
             mime="text/csv"
         )
 with col2:
     st.download_button(
         label="🗂️ CSV",
         data=clean_nans(df).to_csv(index=False).encode('utf-8'),
-        file_name=selected_file.replace('.xlsx', '.csv').replace('.csv', '.csv'),
+        file_name=f"{custom_download_name}.csv",
         mime="text/csv"
     )
 
+# ---- Archive downloads ----
 if not archive_df.empty:
     st.markdown("### Archive Inventory")
     st.dataframe(clean_nans(archive_df), width='stretch')
+    archive_download_name = f"fil-archive_{download_date_str}-downloaded"
     arch_col1, arch_col2 = st.columns([1, 1])
     with arch_col1:
         st.download_button(
             label="📄 Archive Excel",
             data=open(ARCHIVE_FILE, "rb").read(),
-            file_name="archive_inventory.xlsx",
+            file_name=f"{archive_download_name}.xlsx",
             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
         )
     with arch_col2:
@@ -402,7 +407,7 @@ if not archive_df.empty:
         st.download_button(
             label="🗂️ Archive CSV",
             data=archive_csv_bytes,
-            file_name="archive_inventory.csv",
+            file_name=f"{archive_download_name}.csv",
             mime="text/csv"
         )
 
