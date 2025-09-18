@@ -261,7 +261,7 @@ if st.session_state["barcode"]:
 
 with st.expander("➕ Add a New Product", expanded=st.session_state["add_product_expanded"]):
     input_values = {}
-    n_cols = 4  # shorter textfields
+    n_cols = 3  # shorter textfields
     visible_headers = [h for h in VISIBLE_FIELDS if h in headers]
     header_rows = [visible_headers[i:i+n_cols] for i in range(0, len(visible_headers), n_cols)]
     st.markdown("**Enter New Product Details:**")
@@ -426,7 +426,7 @@ with st.expander("✏️ Edit or 🗑 Delete Products", expanded=st.session_stat
             st.session_state["edit_product_index"] = selected_row
             product = df.loc[selected_row]
             edit_values = {}
-            n_cols = 4
+            n_cols = 3
             visible_headers = [h for h in VISIBLE_FIELDS if h in headers]
             header_rows = [visible_headers[i:i+n_cols] for i in range(0, len(visible_headers), n_cols)]
             st.markdown("**Edit Product Details**")
