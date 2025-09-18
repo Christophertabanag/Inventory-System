@@ -8,6 +8,31 @@ import barcode
 from barcode.writer import ImageWriter
 import io
 
+# --- Custom CSS for green buttons and narrower textfields ---
+st.markdown("""
+    <style>
+    div.stButton > button:first-child {
+        background-color: #27ae60 !important;
+        color: white !important;
+        font-weight: bold;
+        border-radius: 6px;
+        border: none;
+        height: 38px;
+        min-width: 170px;
+        margin-bottom: 3px;
+    }
+    input[type="text"], textarea {
+        max-width: 180px;
+    }
+    [data-baseweb="select"] {
+        max-width: 180px;
+    }
+    div[data-testid="stNumberInput"] {
+        max-width: 180px;
+    }
+    </style>
+    """, unsafe_allow_html=True)
+
 def clean_nans(df):
     df = df.replace([np.nan, pd.NA, 'nan'], '', regex=True)
     return df
@@ -18,19 +43,24 @@ def force_all_columns_to_string(df):
     return df
 
 def clean_barcode(val):
-    if pd.isnull(val):
+    # Always return barcode as a whole number string with no decimal
+    if pd.isnull(val) or val == "":
         return ""
     s = str(val).strip().replace('\u200b','').replace('\u00A0','')
     try:
-        # Remove decimal if present and whole number
         f = float(s)
-        if f.is_integer():
-            s = str(int(f))
-        else:
-            s = str(int(round(f)))
+        s = str(int(f))
     except ValueError:
         pass
     return s
+
+def format_rrp(val):
+    # Always show price as $123.45
+    try:
+        f = float(str(val).replace("$", "").strip())
+        return f"${f:.2f}"
+    except Exception:
+        return "$0.00"
 
 INVENTORY_FOLDER = os.path.join(os.path.dirname(__file__), "Inventory")
 inventory_files = [f for f in os.listdir(INVENTORY_FOLDER) if f.lower().endswith(('.xlsx', '.csv'))]
@@ -45,7 +75,7 @@ if len(inventory_files) > 1:
 
 INVENTORY_FILE = os.path.join(INVENTORY_FOLDER, selected_file)
 ARCHIVE_FOLDER = INVENTORY_FOLDER
-ARCHIVE_FILE = os.path.join(ARCHIVE_FOLDER, "archive_inventory.xlsx")  # Still hardcoded, you can extend this logic
+ARCHIVE_FILE = os.path.join(ARCHIVE_FOLDER, "archive_inventory.xlsx")
 
 st.set_page_config(page_title="Inventory Manager", layout="wide")
 
@@ -59,16 +89,16 @@ def load_inventory():
             st.error("Unsupported inventory file type.")
             st.stop()
         df = force_all_columns_to_string(df)
-
-        # Always rename FRAME NO. to FRAMENUM for legacy files
         df.rename(columns={"FRAME NO.": "FRAMENUM"}, inplace=True)
-
-        # Put BARCODE in first column if exists
+        # Clean barcode column as whole number string
         if "BARCODE" in df.columns:
+            df["BARCODE"] = df["BARCODE"].map(clean_barcode)
             cols = list(df.columns)
             cols.insert(0, cols.pop(cols.index("BARCODE")))
             df = df[cols]
-
+        # Clean RRP column
+        if "RRP" in df.columns:
+            df["RRP"] = df["RRP"].apply(lambda x: str(x).replace("$", "").strip())
         return df
     else:
         st.error(f"Inventory file '{INVENTORY_FILE}' not found.")
@@ -80,18 +110,23 @@ def load_archive_inventory():
         df = force_all_columns_to_string(df)
         df.rename(columns={"FRAME NO.": "FRAMENUM"}, inplace=True)
         if "BARCODE" in df.columns:
+            df["BARCODE"] = df["BARCODE"].map(clean_barcode)
             cols = list(df.columns)
             cols.insert(0, cols.pop(cols.index("BARCODE")))
             df = df[cols]
+        if "RRP" in df.columns:
+            df["RRP"] = df["RRP"].apply(lambda x: str(x).replace("$", "").strip())
         return df
     else:
         return pd.DataFrame()
 
 def generate_unique_barcode(df):
+    # Always generate and return as whole number string
     while True:
-        barcode_val = str(random.randint(1, 11000))
-        if clean_barcode(barcode_val) not in df["BARCODE"].map(clean_barcode).values:
-            return barcode_val
+        barcode_val = str(random.randint(100000, 999999))  # 6 digits
+        barcode_val_clean = clean_barcode(barcode_val)
+        if "BARCODE" not in df.columns or barcode_val_clean not in df["BARCODE"].map(clean_barcode).values:
+            return barcode_val_clean
 
 def generate_framecode(supplier, df):
     prefix = supplier[:3].upper()
@@ -203,7 +238,7 @@ st.title("Inventory Manager")
 st.markdown("#### Generate Unique Barcodes")
 btn_col1, btn_col2 = st.columns(2)
 with btn_col1:
-    if st.button("Generate Barcode"):
+    if st.button("Generate Barcode", key="generate_barcode_btn"):
         st.session_state["barcode"] = generate_unique_barcode(df)
         st.session_state["add_product_expanded"] = True
 with btn_col2:
@@ -213,7 +248,7 @@ with btn_col2:
         key="supplier_for_framecode",
         on_change=None,
     )
-    if st.button("Generate Framecode"):
+    if st.button("Generate Framecode", key="generate_framecode_btn"):
         if st.session_state["supplier_for_framecode"]:
             st.session_state["framecode"] = generate_framecode(st.session_state["supplier_for_framecode"], df)
             st.session_state["add_product_expanded"] = True
@@ -274,8 +309,10 @@ with st.expander("➕ Add a New Product", expanded=st.session_state["add_product
                 elif header.upper() == "FRSTATUS":
                     default_status = smart_suggestion if smart_suggestion in FRSTATUS_OPTIONS else FRSTATUS_OPTIONS[1]
                     input_values[header] = st.selectbox(header, FRSTATUS_OPTIONS, index=FRSTATUS_OPTIONS.index(default_status), key=unique_key)
-                elif header.upper() in ["TEMPLE", "DEPTH", "DIAG", "RRP", "EXCOSTPR", "COST PRICE"]:
+                elif header.upper() in ["TEMPLE", "DEPTH", "DIAG", "EXCOSTPR", "COST PRICE"]:
                     input_values[header] = st.text_input(header, value=smart_suggestion, key=unique_key)
+                elif header.upper() == "RRP":
+                    input_values[header] = st.text_input(header, value=format_rrp(smart_suggestion), key=unique_key)
                 elif header.upper() == "TAXPC":
                     default_tax = smart_suggestion if smart_suggestion in TAXPC_OPTIONS else TAXPC_OPTIONS[9]
                     input_values[header] = st.selectbox(header, TAXPC_OPTIONS, index=max(0, TAXPC_OPTIONS.index(default_tax)), key=unique_key)
@@ -309,6 +346,10 @@ with st.expander("➕ Add a New Product", expanded=st.session_state["add_product
                         val = input_values[col]
                         if col == "AVAIL FROM" and isinstance(val, (datetime, pd.Timestamp)):
                             val = val.strftime('%Y-%m-%d')
+                        if col == "BARCODE":
+                            val = clean_barcode(val)
+                        if col == "RRP":
+                            val = str(val).replace("$", "").strip()
                         new_row[col] = val
                     else:
                         new_row[col] = ""
@@ -317,6 +358,9 @@ with st.expander("➕ Add a New Product", expanded=st.session_state["add_product
                 df = pd.concat([df, pd.DataFrame([new_row])], ignore_index=True)
                 df = clean_nans(df)
                 df = force_all_columns_to_string(df)
+                df[barcode_col] = df[barcode_col].map(clean_barcode)
+                if "RRP" in df.columns:
+                    df["RRP"] = df["RRP"].apply(lambda x: str(x).replace("$", "").strip())
                 if INVENTORY_FILE.lower().endswith('.xlsx'):
                     df.to_excel(INVENTORY_FILE, index=False)
                 else:
@@ -328,18 +372,23 @@ with st.expander("➕ Add a New Product", expanded=st.session_state["add_product
                 st.rerun()
 
 st.markdown('### Current Inventory')
-st.dataframe(clean_nans(df), width='stretch')
+df_display = df.copy()
+if "RRP" in df_display.columns:
+    df_display["RRP"] = df_display["RRP"].apply(format_rrp)
+if "BARCODE" in df_display.columns:
+    df_display["BARCODE"] = df_display["BARCODE"].map(clean_barcode)
+st.dataframe(clean_nans(df_display), width='stretch')
 
 download_date_str = datetime.now().strftime("%Y-%m-%d")
 custom_download_name = f"fil-{selected_file.split('.')[0]}_{download_date_str}-downloaded"
 st.download_button(
     label="🗂️ Download as CSV",
-    data=clean_nans(df).to_csv(index=False).encode('utf-8'),
+    data=clean_nans(df_display).to_csv(index=False).encode('utf-8'),
     file_name=f"{custom_download_name}.csv",
     mime="text/csv"
 )
 excel_buffer = io.BytesIO()
-clean_nans(df).to_excel(excel_buffer, index=False)
+clean_nans(df_display).to_excel(excel_buffer, index=False)
 excel_buffer.seek(0)
 st.download_button(
     label="📄 Download as Excel",
@@ -350,7 +399,12 @@ st.download_button(
 
 if not archive_df.empty:
     st.markdown("### Archive Inventory")
-    st.dataframe(clean_nans(archive_df), width='stretch')
+    archive_df_display = archive_df.copy()
+    if "RRP" in archive_df_display.columns:
+        archive_df_display["RRP"] = archive_df_display["RRP"].apply(format_rrp)
+    if "BARCODE" in archive_df_display.columns:
+        archive_df_display["BARCODE"] = archive_df_display["BARCODE"].map(clean_barcode)
+    st.dataframe(clean_nans(archive_df_display), width='stretch')
     archive_download_name = f"fil-archive_{download_date_str}-downloaded"
     arch_col1, arch_col2 = st.columns([1, 1])
     with arch_col1:
@@ -361,7 +415,7 @@ if not archive_df.empty:
             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
         )
     with arch_col2:
-        archive_csv_bytes = clean_nans(archive_df).to_csv(index=False).encode('utf-8')
+        archive_csv_bytes = clean_nans(archive_df_display).to_csv(index=False).encode('utf-8')
         st.download_button(
             label="🗂️ Archive CSV",
             data=archive_csv_bytes,
@@ -422,8 +476,10 @@ with st.expander("✏️ Edit or 🗑 Delete Products", expanded=st.session_stat
                     elif header.upper() == "FRSTATUS":
                         default_status = str(show_value) if str(show_value) in FRSTATUS_OPTIONS else FRSTATUS_OPTIONS[1]
                         edit_values[header] = st.selectbox(header, FRSTATUS_OPTIONS, index=FRSTATUS_OPTIONS.index(default_status), key=unique_key)
-                    elif header.upper() in ["TEMPLE", "DEPTH", "DIAG", "RRP", "EXCOSTPR", "COST PRICE"]:
+                    elif header.upper() in ["TEMPLE", "DEPTH", "DIAG", "EXCOSTPR", "COST PRICE"]:
                         edit_values[header] = st.text_input(header, value=str(show_value), key=unique_key)
+                    elif header.upper() == "RRP":
+                        edit_values[header] = st.text_input(header, value=format_rrp(show_value), key=unique_key)
                     elif header.upper() == "TAXPC":
                         default_tax = str(show_value) if str(show_value) in TAXPC_OPTIONS else TAXPC_OPTIONS[9]
                         edit_values[header] = st.selectbox(header, TAXPC_OPTIONS, index=max(0, TAXPC_OPTIONS.index(default_tax)), key=unique_key)
@@ -463,6 +519,10 @@ with st.expander("✏️ Edit or 🗑 Delete Products", expanded=st.session_stat
                                 val = edit_values[h]
                                 if h == "AVAIL FROM" and isinstance(val, (datetime, pd.Timestamp)):
                                     val = val.strftime('%Y-%m-%d')
+                                if h == "BARCODE":
+                                    val = clean_barcode(val)
+                                if h == "RRP":
+                                    val = str(val).replace("$", "").strip()
                                 df.at[selected_row, h] = val
                             else:
                                 df.at[selected_row, h] = ""
@@ -470,6 +530,9 @@ with st.expander("✏️ Edit or 🗑 Delete Products", expanded=st.session_stat
                             df.at[selected_row, "Timestamp"] = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
                         df = clean_nans(df)
                         df = force_all_columns_to_string(df)
+                        df[barcode_col] = df[barcode_col].map(clean_barcode)
+                        if "RRP" in df.columns:
+                            df["RRP"] = df["RRP"].apply(lambda x: str(x).replace("$", "").strip())
                         if INVENTORY_FILE.lower().endswith('.xlsx'):
                             df.to_excel(INVENTORY_FILE, index=False)
                         else:
@@ -491,6 +554,9 @@ if st.session_state.get("pending_delete_index") is not None:
             df = df.drop(st.session_state["pending_delete_index"]).reset_index(drop=True)
             df = clean_nans(df)
             df = force_all_columns_to_string(df)
+            df[barcode_col] = df[barcode_col].map(clean_barcode)
+            if "RRP" in df.columns:
+                df["RRP"] = df["RRP"].apply(lambda x: str(x).replace("$", "").strip())
             if INVENTORY_FILE.lower().endswith('.xlsx'):
                 df.to_excel(INVENTORY_FILE, index=False)
             else:
@@ -524,6 +590,7 @@ with st.expander("📦 Stock Count"):
 
         if scanned_df is not None:
             scanned_df = force_all_columns_to_string(scanned_df)
+            scanned_df[barcode_col] = scanned_df[barcode_col].map(clean_barcode)
             st.write("Preview of your uploaded file:")
             st.dataframe(clean_nans(scanned_df.head()), width='stretch')
             barcode_candidates = [
@@ -531,7 +598,7 @@ with st.expander("📦 Stock Count"):
                 if "barcode" in col.lower() or "ean" in col.lower() or "upc" in col.lower() or "code" in col.lower()
             ]
             if not barcode_candidates:
-                barcode_candidates = scanned_df.columns.tolist()  # fallback to all columns
+                barcode_candidates = scanned_df.columns.tolist()
             barcode_column = st.selectbox(
                 "Select the column containing barcodes", barcode_candidates
             )
@@ -562,18 +629,17 @@ with st.expander("🔍 Quick Stock Check (Scan Barcode)"):
         if not matches.empty:
             matches = force_all_columns_to_string(matches)
             st.success("✅ Product found:")
-            st.dataframe(clean_nans(matches), width='stretch')
+            matches_display = matches.copy()
+            if "RRP" in matches_display.columns:
+                matches_display["RRP"] = matches_display["RRP"].apply(format_rrp)
+            if "BARCODE" in matches_display.columns:
+                matches_display["BARCODE"] = matches_display["BARCODE"].map(clean_barcode)
+            st.dataframe(clean_nans(matches_display), width='stretch')
             product = matches.iloc[0]
-            barcode_value = product[barcode_col]
+            barcode_value = clean_barcode(product[barcode_col])
             barcode_img_buffer = generate_barcode_image(barcode_value)
             rrp = str(product.get("RRP", ""))
-            if not rrp:
-                rrp = "0"
-            try:
-                rrp_float = float(rrp)
-                rrp_display = f"${rrp_float:.2f}"
-            except:
-                rrp_display = f"${rrp}.00"
+            rrp_display = format_rrp(rrp)
             framecode = str(product.get("FRAMENUM", ""))
             model = str(product.get("MODEL", ""))
             manufact = str(product.get("MANUFACTURER", ""))
@@ -582,7 +648,7 @@ with st.expander("🔍 Quick Stock Check (Scan Barcode)"):
             st.markdown('<div class="print-label-block">', unsafe_allow_html=True)
             if barcode_img_buffer:
                 st.image(barcode_img_buffer, width=220)
-            st.markdown(f'<div class="print-label-barcode-num">{clean_barcode(barcode_value)}</div>', unsafe_allow_html=True)
+            st.markdown(f'<div class="print-label-barcode-num">{barcode_value}</div>', unsafe_allow_html=True)
             st.markdown(f'<div class="print-label-price">{rrp_display}</div>', unsafe_allow_html=True)
             st.markdown(f'<div class="print-label-gst">Inc GST</div>', unsafe_allow_html=True)
             st.markdown('<div class="print-label-details">', unsafe_allow_html=True)
