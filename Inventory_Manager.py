@@ -30,6 +30,13 @@ def clean_barcode(val):
     except ValueError:
         return s
 
+def format_rrp(val):
+    try:
+        f = float(str(val).replace("$", "").strip())
+        return f"${f:.2f}"
+    except Exception:
+        return f"${val}.00"
+
 INVENTORY_FOLDER = os.path.join(os.path.dirname(__file__), "Inventory")
 inventory_files = [f for f in os.listdir(INVENTORY_FOLDER) if f.lower().endswith(('.xlsx', '.csv'))]
 
@@ -59,10 +66,12 @@ def load_inventory():
         df = force_all_columns_to_string(df)
         df.rename(columns={"FRAME NO.": "FRAMENUM"}, inplace=True)
         if "BARCODE" in df.columns:
-            df["BARCODE"] = df["BARCODE"].map(clean_barcode) # <--- Clean all barcodes after loading
+            df["BARCODE"] = df["BARCODE"].map(clean_barcode)
             cols = list(df.columns)
             cols.insert(0, cols.pop(cols.index("BARCODE")))
             df = df[cols]
+        if "RRP" in df.columns:
+            df["RRP"] = df["RRP"].apply(lambda x: str(x).replace("$", "").strip())
         return df
     else:
         st.error(f"Inventory file '{INVENTORY_FILE}' not found.")
@@ -78,6 +87,8 @@ def load_archive_inventory():
             cols = list(df.columns)
             cols.insert(0, cols.pop(cols.index("BARCODE")))
             df = df[cols]
+        if "RRP" in df.columns:
+            df["RRP"] = df["RRP"].apply(lambda x: str(x).replace("$", "").strip())
         return df
     else:
         return pd.DataFrame()
@@ -302,9 +313,10 @@ with st.expander("➕ Add a New Product", expanded=st.session_state["add_product
                 for col in headers:
                     if col in input_values:
                         val = input_values[col]
-                        # Barcode cleaning when saving
                         if col == barcode_col:
                             val = clean_barcode(val)
+                        if col == "RRP":
+                            val = str(val).replace("$", "").strip()
                         if col == "AVAIL FROM" and isinstance(val, (datetime, pd.Timestamp)):
                             val = val.strftime('%Y-%m-%d')
                         new_row[col] = val
@@ -315,7 +327,9 @@ with st.expander("➕ Add a New Product", expanded=st.session_state["add_product
                 df = pd.concat([df, pd.DataFrame([new_row])], ignore_index=True)
                 df = clean_nans(df)
                 df = force_all_columns_to_string(df)
-                df[barcode_col] = df[barcode_col].map(clean_barcode) # Clean all barcodes after adding
+                df[barcode_col] = df[barcode_col].map(clean_barcode)
+                if "RRP" in df.columns:
+                    df["RRP"] = df["RRP"].apply(lambda x: str(x).replace("$", "").strip())
                 if INVENTORY_FILE.lower().endswith('.xlsx'):
                     df.to_excel(INVENTORY_FILE, index=False)
                 else:
@@ -327,8 +341,10 @@ with st.expander("➕ Add a New Product", expanded=st.session_state["add_product
                 st.rerun()
 
 st.markdown('### Current Inventory')
-df[barcode_col] = df[barcode_col].map(clean_barcode) # <--- Clean before display
-st.dataframe(clean_nans(df), width='stretch')
+df_display = df.copy()
+if "RRP" in df_display.columns:
+    df_display["RRP"] = df_display["RRP"].apply(format_rrp)
+st.dataframe(clean_nans(df_display), width='stretch')
 
 download_date_str = datetime.now().strftime("%Y-%m-%d")
 custom_download_name = f"fil-{selected_file.split('.')[0]}_{download_date_str}-downloaded"
@@ -350,8 +366,10 @@ st.download_button(
 
 if not archive_df.empty:
     st.markdown("### Archive Inventory")
-    archive_df[barcode_col] = archive_df[barcode_col].map(clean_barcode)
-    st.dataframe(clean_nans(archive_df), width='stretch')
+    archive_df_display = archive_df.copy()
+    if "RRP" in archive_df_display.columns:
+        archive_df_display["RRP"] = archive_df_display["RRP"].apply(format_rrp)
+    st.dataframe(clean_nans(archive_df_display), width='stretch')
     archive_download_name = f"fil-archive_{download_date_str}-downloaded"
     arch_col1, arch_col2 = st.columns([1, 1])
     with arch_col1:
@@ -448,8 +466,9 @@ with st.expander("✏️ Edit or 🗑 Delete Products", expanded=st.session_stat
                 if submit_edit:
                     if "AVAIL FROM" in edit_values and isinstance(edit_values["AVAIL FROM"], (datetime, pd.Timestamp)):
                         edit_values["AVAIL FROM"] = edit_values["AVAIL FROM"].strftime('%Y-%m-%d')
-                    # Clean barcode before saving edits
                     edit_values[barcode_col] = clean_barcode(edit_values[barcode_col])
+                    if "RRP" in edit_values:
+                        edit_values["RRP"] = str(edit_values["RRP"]).replace("$", "").strip()
                     edit_barcode_cleaned = clean_barcode(edit_values[barcode_col])
                     edit_framecode_cleaned = clean_barcode(edit_values[framecode_col])
                     df_barcodes_cleaned = df[barcode_col].map(clean_barcode)
@@ -466,6 +485,8 @@ with st.expander("✏️ Edit or 🗑 Delete Products", expanded=st.session_stat
                                 val = edit_values[h]
                                 if h == barcode_col:
                                     val = clean_barcode(val)
+                                if h == "RRP":
+                                    val = str(val).replace("$", "").strip()
                                 if h == "AVAIL FROM" and isinstance(val, (datetime, pd.Timestamp)):
                                     val = val.strftime('%Y-%m-%d')
                                 df.at[selected_row, h] = val
@@ -475,7 +496,9 @@ with st.expander("✏️ Edit or 🗑 Delete Products", expanded=st.session_stat
                             df.at[selected_row, "Timestamp"] = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
                         df = clean_nans(df)
                         df = force_all_columns_to_string(df)
-                        df[barcode_col] = df[barcode_col].map(clean_barcode) # Clean barcodes after edit
+                        df[barcode_col] = df[barcode_col].map(clean_barcode)
+                        if "RRP" in df.columns:
+                            df["RRP"] = df["RRP"].apply(lambda x: str(x).replace("$", "").strip())
                         if INVENTORY_FILE.lower().endswith('.xlsx'):
                             df.to_excel(INVENTORY_FILE, index=False)
                         else:
@@ -498,6 +521,8 @@ if st.session_state.get("pending_delete_index") is not None:
             df = clean_nans(df)
             df = force_all_columns_to_string(df)
             df[barcode_col] = df[barcode_col].map(clean_barcode)
+            if "RRP" in df.columns:
+                df["RRP"] = df["RRP"].apply(lambda x: str(x).replace("$", "").strip())
             if INVENTORY_FILE.lower().endswith('.xlsx'):
                 df.to_excel(INVENTORY_FILE, index=False)
             else:
@@ -570,18 +595,15 @@ with st.expander("🔍 Quick Stock Check (Scan Barcode)"):
         if not matches.empty:
             matches = force_all_columns_to_string(matches)
             st.success("✅ Product found:")
-            st.dataframe(clean_nans(matches), width='stretch')
+            matches_display = matches.copy()
+            if "RRP" in matches_display.columns:
+                matches_display["RRP"] = matches_display["RRP"].apply(format_rrp)
+            st.dataframe(clean_nans(matches_display), width='stretch')
             product = matches.iloc[0]
             barcode_value = clean_barcode(product[barcode_col])
             barcode_img_buffer = generate_barcode_image(barcode_value)
             rrp = str(product.get("RRP", ""))
-            if not rrp:
-                rrp = "0"
-            try:
-                rrp_float = float(rrp)
-                rrp_display = f"${rrp_float:.2f}"
-            except:
-                rrp_display = f"${rrp}.00"
+            rrp_display = format_rrp(rrp)
             framecode = str(product.get("FRAMENUM", ""))
             model = str(product.get("MODEL", ""))
             manufact = str(product.get("MANUFACTURER", ""))
