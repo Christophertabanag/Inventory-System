@@ -8,6 +8,32 @@ import barcode
 from barcode.writer import ImageWriter
 import io
 
+# --- Custom CSS for green buttons and narrower textfields ---
+st.markdown("""
+    <style>
+    div.stButton > button:first-child {
+        background-color: #27ae60;
+        color: white;
+        font-weight: bold;
+        border-radius: 6px;
+        border: none;
+        height: 38px;
+        min-width: 170px;
+        margin-bottom: 3px;
+    }
+    input[type="text"], textarea {
+        max-width: 180px;
+    }
+    /* For select boxes and number inputs */
+    [data-baseweb="select"] {
+        max-width: 180px;
+    }
+    div[data-testid="stNumberInput"] {
+        max-width: 180px;
+    }
+    </style>
+    """, unsafe_allow_html=True)
+
 def clean_nans(df):
     df = df.replace([np.nan, pd.NA, 'nan'], '', regex=True)
     return df
@@ -235,7 +261,7 @@ if st.session_state["barcode"]:
 
 with st.expander("➕ Add a New Product", expanded=st.session_state["add_product_expanded"]):
     input_values = {}
-    n_cols = 3
+    n_cols = 4  # shorter textfields
     visible_headers = [h for h in VISIBLE_FIELDS if h in headers]
     header_rows = [visible_headers[i:i+n_cols] for i in range(0, len(visible_headers), n_cols)]
     st.markdown("**Enter New Product Details:**")
@@ -400,7 +426,7 @@ with st.expander("✏️ Edit or 🗑 Delete Products", expanded=st.session_stat
             st.session_state["edit_product_index"] = selected_row
             product = df.loc[selected_row]
             edit_values = {}
-            n_cols = 3
+            n_cols = 4
             visible_headers = [h for h in VISIBLE_FIELDS if h in headers]
             header_rows = [visible_headers[i:i+n_cols] for i in range(0, len(visible_headers), n_cols)]
             st.markdown("**Edit Product Details**")
@@ -613,8 +639,10 @@ with st.expander("🔍 Quick Stock Check (Scan Barcode)"):
             if barcode_img_buffer:
                 st.image(barcode_img_buffer, width=220)
             st.markdown(f'<div class="print-label-barcode-num">{barcode_value}</div>', unsafe_allow_html=True)
-            st.markdown(f'<div class="print-label-price">{rrp_display}</div>', unsafe_allow_html=True)
-            st.markdown(f'<div class="print-label-gst">Inc GST</div>', unsafe_allow_html=True)
+            # Conditional display of price and GST
+            if rrp.strip() and rrp.strip() != "$.00" and rrp.strip() != "nan" and rrp.strip() != "":
+                st.markdown(f'<div class="print-label-price">{rrp_display}</div>', unsafe_allow_html=True)
+                st.markdown(f'<div class="print-label-gst">Inc GST</div>', unsafe_allow_html=True)
             st.markdown('<div class="print-label-details">', unsafe_allow_html=True)
             st.markdown(f'Framecode: {framecode}', unsafe_allow_html=True)
             st.markdown(f'Model: {model}', unsafe_allow_html=True)
