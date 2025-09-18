@@ -365,29 +365,22 @@ st.dataframe(clean_nans(df), width='stretch')
 download_date_str = datetime.now().strftime("%Y-%m-%d")
 custom_download_name = f"fil-{selected_file.split('.')[0]}_{download_date_str}-downloaded"
 
-col1, col2 = st.columns([1, 1])
-with col1:
-    if INVENTORY_FILE.lower().endswith('.xlsx'):
-        st.download_button(
-            label="📄 Excel",
-            data=open(INVENTORY_FILE, "rb").read(),
-            file_name=f"{custom_download_name}.xlsx",
-            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-        )
-    else:
-        st.download_button(
-            label="📄 CSV",
-            data=open(INVENTORY_FILE, "rb").read(),
-            file_name=f"{custom_download_name}.csv",
-            mime="text/csv"
-        )
-with col2:
-    st.download_button(
-        label="🗂️ CSV",
-        data=clean_nans(df).to_csv(index=False).encode('utf-8'),
-        file_name=f"{custom_download_name}.csv",
-        mime="text/csv"
-    )
+# Always offer CSV and Excel download for current inventory, regardless of original file type
+st.download_button(
+    label="🗂️ Download as CSV",
+    data=clean_nans(df).to_csv(index=False).encode('utf-8'),
+    file_name=f"{custom_download_name}.csv",
+    mime="text/csv"
+)
+excel_buffer = io.BytesIO()
+clean_nans(df).to_excel(excel_buffer, index=False)
+excel_buffer.seek(0)
+st.download_button(
+    label="📄 Download as Excel",
+    data=excel_buffer,
+    file_name=f"{custom_download_name}.xlsx",
+    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+)
 
 # ---- Archive downloads ----
 if not archive_df.empty:
