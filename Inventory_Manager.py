@@ -90,6 +90,16 @@ def load_inventory():
             st.error("Unsupported inventory file type.")
             st.stop()
         df = force_all_columns_to_string(df)  # Ensure all columns are string type!
+
+        # Always rename FRAME NO. to FRAMENUM for legacy files
+        df.rename(columns={"FRAME NO.": "FRAMENUM"}, inplace=True)
+
+        # Put BARCODE in first column if exists
+        if "BARCODE" in df.columns:
+            cols = list(df.columns)
+            cols.insert(0, cols.pop(cols.index("BARCODE")))
+            df = df[cols]
+
         return df
     else:
         st.error(f"Inventory file '{INVENTORY_FILE}' not found.")
@@ -121,7 +131,7 @@ def generate_unique_barcode(df):
 
 def generate_framecode(supplier, df):
     prefix = supplier[:3].upper()
-    frame_col = "FRAME NO."
+    frame_col = "FRAMENUM"
     if frame_col not in df.columns:
         return prefix + "000001"
     framecodes = df[frame_col].dropna().astype(str)
@@ -172,7 +182,7 @@ def get_smart_default(header, df):
     if header == "TAXPC":
         return "GST 10%"
     if header == "AVAIL FROM":
-        return datetime.now().date()  # This is only used for edits, not new product
+        return datetime.now().date()
     if header == "FRSTATUS":
         return "PRACTICE OWNED"
     if header == "NOTE":
@@ -180,7 +190,7 @@ def get_smart_default(header, df):
     return ""
 
 VISIBLE_FIELDS = [
-    "BARCODE", "LOCATION", "FRAME NO.", "PKEY", "MANUFACTURER", "MODEL", "SIZE",
+    "BARCODE", "LOCATION", "FRAMENUM", "PKEY", "MANUFACTURER", "MODEL", "SIZE",
     "F COLOUR", "F GROUP", "SUPPLIER", "QUANTITY", "F TYPE", "TEMPLE", "DEPTH", "DIAG",
     "BASECURVE", "RRP", "EXCOSTPR", "COST PRICE", "TAXPC", "FRSTATUS", "AVAIL FROM", "NOTE"
 ]
@@ -215,7 +225,7 @@ df = load_inventory()
 archive_df = load_archive_inventory()
 columns = list(df.columns)
 barcode_col = "BARCODE"
-framecode_col = "FRAME NO."
+framecode_col = "FRAMENUM"
 
 if barcode_col not in columns or framecode_col not in columns:
     st.error(f"Couldn't find '{barcode_col}' or '{framecode_col}' columns in your inventory file.")
@@ -266,7 +276,6 @@ with st.expander("➕ Add a New Product", expanded=st.session_state["add_product
                 st.markdown('<div class="compact-form">', unsafe_allow_html=True)
                 unique_key = f"textinput_{header}"
                 smart_suggestion = get_smart_default(header, df)
-                # For BARCODE and FRAME NO., do NOT add required label markup
                 if header in [barcode_col, framecode_col]:
                     label = header
                 else:
@@ -358,14 +367,10 @@ with st.expander("➕ Add a New Product", expanded=st.session_state["add_product
                 st.rerun()
 
 st.markdown('### Current Inventory')
-
 st.dataframe(clean_nans(df), width='stretch')
 
-# ---- Custom Download Naming Logic ----
 download_date_str = datetime.now().strftime("%Y-%m-%d")
 custom_download_name = f"fil-{selected_file.split('.')[0]}_{download_date_str}-downloaded"
-
-# Always offer CSV and Excel download for current inventory, regardless of original file type
 st.download_button(
     label="🗂️ Download as CSV",
     data=clean_nans(df).to_csv(index=False).encode('utf-8'),
@@ -382,7 +387,6 @@ st.download_button(
     mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
 )
 
-# ---- Archive downloads ----
 if not archive_df.empty:
     st.markdown("### Archive Inventory")
     st.dataframe(clean_nans(archive_df), width='stretch')
@@ -430,7 +434,6 @@ with st.expander("✏️ Edit or 🗑 Delete Products", expanded=st.session_stat
                         show_value = clean_barcode(value) if header in [barcode_col, framecode_col] else value
                         unique_key = f"edit_textinput_{header}_{selected_row}"
                         smart_suggestion = get_smart_default(header, df)
-                        # For BARCODE and FRAME NO., do NOT add required label markup
                         if header in [barcode_col, framecode_col]:
                             label = header
                         else:
@@ -615,7 +618,7 @@ with st.expander("🔍 Quick Stock Check (Scan Barcode)"):
                 rrp_display = f"${rrp_float:.2f}"
             except:
                 rrp_display = f"${rrp}.00"
-            framecode = str(product.get("FRAME NO.", ""))
+            framecode = str(product.get("FRAMENUM", ""))
             model = str(product.get("MODEL", ""))
             manufact = str(product.get("MANUFACTURER", ""))
             fcolour = str(product.get("F COLOUR", ""))
