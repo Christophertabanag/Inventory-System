@@ -269,56 +269,48 @@ if st.session_state["barcode"]:
     if img_buffer:
         st.image(img_buffer, width=220)
 
-# --- Add Product Section (includes both NEW_FIELDS + legacy as fallback) ---
+# --- Add Product Section (5 textfields per row) ---
 with st.expander("➕ Add a New Product", expanded=st.session_state["add_product_expanded"]):
     input_values = {}
-    # Lay out new fields in 3 columns
-    col1, col2, col3 = st.columns(3)
-    with col1:
-        input_values["BARCODE"] = st.text_input("BARCODE", value=st.session_state["barcode"])
-        input_values["QUANTITY"] = st.number_input("QUANTITY", min_value=0, value=1)
-        input_values["MANUFACTURER"] = st.text_input("MANUFACTURER")
-        input_values["MODEL"] = st.text_input("MODEL")
-        input_values["FCOLOUR"] = st.text_input("FCOLOUR")
-        input_values["SIZE"] = st.selectbox("SIZE", SIZE_OPTIONS)
-    with col2:
-        input_values["SUPPLIER"] = st.text_input("SUPPLIER")
-        input_values["FRAME TYPE"] = st.selectbox("FRAME TYPE", FRAME_TYPE_OPTIONS)
-        input_values["TEMPLE"] = st.text_input("TEMPLE")
-        input_values["DEPTH"] = st.text_input("DEPTH")
-        input_values["DIAG"] = st.text_input("DIAG")
-        input_values["RRP"] = st.text_input("RRP")
-    with col3:
-        input_values["EXCOSTPRICE"] = st.text_input("EXCOSTPRICE")
-        input_values["COSTPRICE"] = st.text_input("COSTPRICE")
-        input_values["TAXPC"] = st.selectbox("TAXPC", TAXPC_OPTIONS)
-        input_values["FRSTATUS"] = st.selectbox("FRSTATUS", FRSTATUS_OPTIONS)
-        input_values["AVAILFROM"] = st.date_input("AVAILFROM", value=datetime.now().date())
-        input_values["NOTE"] = st.text_input("NOTE")
+    # Create a flat list of your fields (new + legacy, adjust order as desired)
+    all_fields = [
+        # NEW FIELDS
+        "BARCODE", "QUANTITY", "MANUFACTURER", "MODEL", "FCOLOUR",
+        "SIZE", "SUPPLIER", "FRAME TYPE", "TEMPLE", "DEPTH",
+        "DIAG", "RRP", "EXCOSTPRICE", "COSTPRICE", "TAXPC",
+        "FRSTATUS", "AVAILFROM", "NOTE",
+        # LEGACY FIELDS (optional, include if needed)
+        "AVAILABILITY", "FRAMENUM", "PHOTO", "LOCATION", "PKEY",
+        "F COLOUR", "F GROUP", "F TYPE", "BASECURVE", "EXCOSTPR",
+        "COST PRICE", "AVAIL FROM"
+    ]
+    select_fields = {
+        "SIZE": SIZE_OPTIONS,
+        "FRAME TYPE": FRAME_TYPE_OPTIONS,
+        "F TYPE": F_TYPE_OPTIONS,
+        "TAXPC": TAXPC_OPTIONS,
+        "FRSTATUS": FRSTATUS_OPTIONS,
+    }
+    date_fields = ["AVAILFROM", "AVAIL FROM"]
+    number_fields = ["QUANTITY"]
 
-    # For legacy fields, fallback to old fields UI
-    legacy_col1, legacy_col2, legacy_col3 = st.columns(3)
-    with legacy_col1:
-        input_values["AVAILABILITY"] = st.text_input("AVAILABILITY")
-        input_values["FRAMENUM"] = st.text_input("FRAME NUMBER", value=st.session_state["framecode"])
-        input_values["PHOTO"] = st.text_input("PHOTO")
-        input_values["LOCATION"] = st.text_input("LOCATION")
-    with legacy_col2:
-        input_values["PKEY"] = st.text_input("PKEY")
-        input_values["F COLOUR"] = st.text_input("F COLOUR")
-        input_values["F GROUP"] = st.text_input("F GROUP")
-        input_values["F TYPE"] = st.selectbox("F TYPE", F_TYPE_OPTIONS)
-    with legacy_col3:
-        input_values["BASECURVE"] = st.text_input("BASECURVE")
-        input_values["EXCOSTPR"] = st.text_input("EXCOSTPR")
-        input_values["COST PRICE"] = st.text_input("COST PRICE")
-        input_values["AVAIL FROM"] = st.date_input("AVAIL FROM", value=datetime.now().date())
-
+    # Break into rows of 5
+    rows = [all_fields[i:i+5] for i in range(0, len(all_fields), 5)]
+    for row in rows:
+        cols = st.columns(len(row))
+        for idx, field in enumerate(row):
+            if field in select_fields:
+                input_values[field] = cols[idx].selectbox(field, select_fields[field])
+            elif field in date_fields:
+                input_values[field] = cols[idx].date_input(field, value=datetime.now().date())
+            elif field in number_fields:
+                input_values[field] = cols[idx].number_input(field, min_value=0, value=1)
+            else:
+                input_values[field] = cols[idx].text_input(field)
     with st.form(key="add_product_form"):
         st.markdown("Click 'Add Product' to submit the details above.")
         submit = st.form_submit_button("Add Product")
         if submit:
-            # Validate both new and legacy required fields
             required_fields = ["BARCODE", "FRAMENUM"]
             missing = [field for field in required_fields if not input_values.get(field)]
             barcode_cleaned = clean_barcode(input_values.get("BARCODE", ""))
@@ -333,27 +325,15 @@ with st.expander("➕ Add a New Product", expanded=st.session_state["add_product
                 st.error("❌ This framecode already exists in inventory!")
             else:
                 new_row = {}
-                # Add new fields
-                for col in NEW_FIELDS:
+                for col in all_fields:
                     val = input_values.get(col, "")
                     if col == "BARCODE":
                         val = clean_barcode(val)
-                    if col in ["RRP", "EXCOSTPRICE", "COSTPRICE"]:
+                    if col in ["RRP", "EXCOSTPRICE", "COSTPRICE", "EXCOSTPR", "COST PRICE"]:
                         val = str(val).replace("$", "").strip()
-                    if col == "AVAILFROM" and isinstance(val, (datetime, pd.Timestamp)):
+                    if col in date_fields and isinstance(val, (datetime, pd.Timestamp)):
                         val = val.strftime('%Y-%m-%d')
                     new_row[col] = val
-                # Add legacy fields if present
-                for col in VISIBLE_FIELDS:
-                    if col not in NEW_FIELDS:
-                        val = input_values.get(col, "")
-                        if col == "BARCODE":
-                            val = clean_barcode(val)
-                        if col in ["RRP", "EXCOSTPR", "COST PRICE"]:
-                            val = str(val).replace("$", "").strip()
-                        if col in ["AVAIL FROM"] and isinstance(val, (datetime, pd.Timestamp)):
-                            val = val.strftime('%Y-%m-%d')
-                        new_row[col] = val
                 if "Timestamp" in df.columns:
                     new_row["Timestamp"] = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
                 df = pd.concat([df, pd.DataFrame([new_row])], ignore_index=True)
@@ -437,28 +417,31 @@ with st.expander("✏️ Edit or 🗑 Delete Products", expanded=st.session_stat
             st.session_state["edit_product_index"] = selected_row
             product = df.loc[selected_row]
             edit_values = {}
-            # Lay out editing fields in 3 columns for all new and legacy fields
+            # Lay out editing fields in 5 columns for all new and legacy fields
             edit_headers = [col for col in NEW_FIELDS if col in df.columns] + [col for col in VISIBLE_FIELDS if col not in NEW_FIELDS and col in df.columns]
-            edit_header_rows = [edit_headers[i:i+3] for i in range(0, len(edit_headers), 3)]
+            edit_header_rows = [edit_headers[i:i+5] for i in range(0, len(edit_headers), 5)]
+            select_fields = {
+                "SIZE": SIZE_OPTIONS,
+                "FRAME TYPE": FRAME_TYPE_OPTIONS,
+                "F TYPE": F_TYPE_OPTIONS,
+                "TAXPC": TAXPC_OPTIONS,
+                "FRSTATUS": FRSTATUS_OPTIONS,
+            }
+            date_fields = ["AVAILFROM", "AVAIL FROM"]
+            number_fields = ["QUANTITY"]
             for row in edit_header_rows:
                 cols = st.columns(len(row))
                 for idx, header in enumerate(row):
                     value = product[header] if header in product else ""
-                    if header == "SIZE":
-                        edit_values[header] = cols[idx].selectbox(header, SIZE_OPTIONS, index=SIZE_OPTIONS.index(str(value)) if str(value) in SIZE_OPTIONS else 0, key=f"edit_{header}_{selected_row}")
-                    elif header == "FRAME TYPE":
-                        edit_values[header] = cols[idx].selectbox(header, FRAME_TYPE_OPTIONS, index=FRAME_TYPE_OPTIONS.index(str(value)) if str(value) in FRAME_TYPE_OPTIONS else 0, key=f"edit_{header}_{selected_row}")
-                    elif header == "TAXPC":
-                        edit_values[header] = cols[idx].selectbox(header, TAXPC_OPTIONS, index=TAXPC_OPTIONS.index(str(value)) if str(value) in TAXPC_OPTIONS else 0, key=f"edit_{header}_{selected_row}")
-                    elif header == "FRSTATUS":
-                        edit_values[header] = cols[idx].selectbox(header, FRSTATUS_OPTIONS, index=FRSTATUS_OPTIONS.index(str(value)) if str(value) in FRSTATUS_OPTIONS else 0, key=f"edit_{header}_{selected_row}")
-                    elif header in ["AVAILFROM", "AVAIL FROM"]:
+                    if header in select_fields:
+                        edit_values[header] = cols[idx].selectbox(header, select_fields[header], index=select_fields[header].index(str(value)) if str(value) in select_fields[header] else 0, key=f"edit_{header}_{selected_row}")
+                    elif header in date_fields:
                         try:
                             date_val = pd.to_datetime(value).date() if value else datetime.now().date()
                         except Exception:
                             date_val = datetime.now().date()
                         edit_values[header] = cols[idx].date_input(header, value=date_val, key=f"edit_{header}_{selected_row}")
-                    elif header == "QUANTITY":
+                    elif header in number_fields:
                         try:
                             default_qty = int(str(value)) if str(value).isdigit() else 1
                         except:
@@ -471,7 +454,6 @@ with st.expander("✏️ Edit or 🗑 Delete Products", expanded=st.session_stat
                 submit_edit = col1.form_submit_button("Save Changes")
                 submit_delete = col2.form_submit_button("Delete Product")
                 if submit_edit:
-                    # Clean and save edited values
                     for h in edit_headers:
                         if h in edit_values:
                             val = edit_values[h]
@@ -479,7 +461,7 @@ with st.expander("✏️ Edit or 🗑 Delete Products", expanded=st.session_stat
                                 val = clean_barcode(val)
                             if h in ["RRP", "EXCOSTPRICE", "COSTPRICE", "EXCOSTPR", "COST PRICE"]:
                                 val = str(val).replace("$", "").strip()
-                            if h in ["AVAILFROM", "AVAIL FROM"] and isinstance(val, (datetime, pd.Timestamp)):
+                            if h in date_fields and isinstance(val, (datetime, pd.Timestamp)):
                                 val = val.strftime('%Y-%m-%d')
                             df.at[selected_row, h] = val
                         else:
