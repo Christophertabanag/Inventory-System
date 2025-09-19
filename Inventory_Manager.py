@@ -349,7 +349,7 @@ with st.expander("➕ Add a New Product", expanded=st.session_state["add_product
                         if col == "BARCODE":
                             val = clean_barcode(val)
                         if col == "RRP":
-                            val = str(val).replace("$", "").strip()
+                            val = format_rrp(val)
                         new_row[col] = val
                     else:
                         new_row[col] = ""
@@ -360,7 +360,7 @@ with st.expander("➕ Add a New Product", expanded=st.session_state["add_product
                 df = force_all_columns_to_string(df)
                 df[barcode_col] = df[barcode_col].map(clean_barcode)
                 if "RRP" in df.columns:
-                    df["RRP"] = df["RRP"].apply(lambda x: str(x).replace("$", "").strip())
+                    df["RRP"] = df["RRP"].apply(format_rrp)
                 if INVENTORY_FILE.lower().endswith('.xlsx'):
                     df.to_excel(INVENTORY_FILE, index=False)
                 else:
@@ -374,20 +374,15 @@ with st.expander("➕ Add a New Product", expanded=st.session_state["add_product
 st.markdown('### Current Inventory')
 df_display = df.copy()
 if "RRP" in df_display.columns:
-    df_display["RRP"] = df_display["RRP"].apply(format_rrp)
+    df_display["RRP"] = df_display["RRP"].apply(format_rrp).astype(str)
 if "BARCODE" in df_display.columns:
     df_display["BARCODE"] = df_display["BARCODE"].map(clean_barcode)
 st.dataframe(clean_nans(df_display), width='stretch')
 
 download_date_str = datetime.now().strftime("%Y-%m-%d")
 custom_download_name = f"fil-{selected_file.split('.')[0]}_{download_date_str}-downloaded"
-st.download_button(
-    label="🗂️ Download as CSV",
-    data=clean_nans(df_display).to_csv(index=False).encode('utf-8'),
-    file_name=f"{custom_download_name}.csv",
-    mime="text/csv"
-)
 excel_buffer = io.BytesIO()
+df_display["RRP"] = df_display["RRP"].astype(str)   # Ensure string type!
 clean_nans(df_display).to_excel(excel_buffer, index=False)
 excel_buffer.seek(0)
 st.download_button(
@@ -396,12 +391,18 @@ st.download_button(
     file_name=f"{custom_download_name}.xlsx",
     mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
 )
+st.download_button(
+    label="🗂️ Download as CSV",
+    data=clean_nans(df_display).to_csv(index=False).encode('utf-8'),
+    file_name=f"{custom_download_name}.csv",
+    mime="text/csv"
+)
 
 if not archive_df.empty:
     st.markdown("### Archive Inventory")
     archive_df_display = archive_df.copy()
     if "RRP" in archive_df_display.columns:
-        archive_df_display["RRP"] = archive_df_display["RRP"].apply(format_rrp)
+        archive_df_display["RRP"] = archive_df_display["RRP"].apply(format_rrp).astype(str)
     if "BARCODE" in archive_df_display.columns:
         archive_df_display["BARCODE"] = archive_df_display["BARCODE"].map(clean_barcode)
     st.dataframe(clean_nans(archive_df_display), width='stretch')
@@ -522,7 +523,7 @@ with st.expander("✏️ Edit or 🗑 Delete Products", expanded=st.session_stat
                                 if h == "BARCODE":
                                     val = clean_barcode(val)
                                 if h == "RRP":
-                                    val = str(val).replace("$", "").strip()
+                                    val = format_rrp(val)
                                 df.at[selected_row, h] = val
                             else:
                                 df.at[selected_row, h] = ""
@@ -532,7 +533,7 @@ with st.expander("✏️ Edit or 🗑 Delete Products", expanded=st.session_stat
                         df = force_all_columns_to_string(df)
                         df[barcode_col] = df[barcode_col].map(clean_barcode)
                         if "RRP" in df.columns:
-                            df["RRP"] = df["RRP"].apply(lambda x: str(x).replace("$", "").strip())
+                            df["RRP"] = df["RRP"].apply(format_rrp)
                         if INVENTORY_FILE.lower().endswith('.xlsx'):
                             df.to_excel(INVENTORY_FILE, index=False)
                         else:
@@ -556,7 +557,7 @@ if st.session_state.get("pending_delete_index") is not None:
             df = force_all_columns_to_string(df)
             df[barcode_col] = df[barcode_col].map(clean_barcode)
             if "RRP" in df.columns:
-                df["RRP"] = df["RRP"].apply(lambda x: str(x).replace("$", "").strip())
+                df["RRP"] = df["RRP"].apply(format_rrp)
             if INVENTORY_FILE.lower().endswith('.xlsx'):
                 df.to_excel(INVENTORY_FILE, index=False)
             else:
