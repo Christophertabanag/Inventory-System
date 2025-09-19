@@ -172,6 +172,8 @@ def get_smart_default(header, df):
         return "Default Supplier"
     if header == "F TYPE":
         return "MEN"
+    if header == "FRAMETYPE":
+        return "MEN"
     if header == "RRP":
         return "120.00"
     if header == "EXCOSTPR":
@@ -180,7 +182,7 @@ def get_smart_default(header, df):
         return "70.00"
     if header == "TAXPC":
         return "GST 10%"
-    if header == "AVAIL FROM":
+    if header == "AVAILFROM":
         return datetime.now().date()
     if header == "FRSTATUS":
         return "PRACTICE OWNED"
@@ -191,13 +193,14 @@ def get_smart_default(header, df):
     return ""
 
 VISIBLE_FIELDS = [
-    "BARCODE", "LOCATION", "FRAMENUM", "PKEY", "MANUFACT", "MODEL", "SIZE",
-    "FCOLOUR", "F GROUP", "SUPPLIER", "QUANTITY", "F TYPE", "TEMPLE", "DEPTH", "DIAG",
-    "BASECURVE", "RRP", "EXCOSTPR", "COST PRICE", "TAXPC", "FRSTATUS", "AVAIL FROM", "NOTE"
+    "BARCODE", "LOCATION", "FRAMENUM", "MANUFACT", "MODEL", "SIZE",
+    "FCOLOUR", "FRAMETYPE", "F GROUP", "SUPPLIER", "QUANTITY", "F TYPE", "TEMPLE", "DEPTH", "DIAG",
+    "BASECURVE", "RRP", "EXCOSTPR", "COST PRICE", "TAXPC", "FRSTATUS", "AVAILFROM", "NOTE"
 ]
 FREE_TEXT_FIELDS = [
-    "PKEY", "FCOLOUR", "F GROUP", "BASECURVE"
+    "FCOLOUR", "F GROUP", "BASECURVE"
 ]
+FRAMETYPE_OPTIONS = ["MEN", "WOMEN", "KIDS", "UNISEX"]
 F_TYPE_OPTIONS = ["MEN", "WOMEN", "KIDS", "UNISEX"]
 FRSTATUS_OPTIONS = ["CONSIGNMENT OWNED", "PRACTICE OWNED"]
 TAXPC_OPTIONS = [f"GST {i}%" for i in range(1, 21)]
@@ -267,19 +270,13 @@ with st.expander("➕ Add a New Product", expanded=st.session_state["add_product
     input_values = {}
     n_cols = 3
     visible_headers = [h for h in VISIBLE_FIELDS if h in headers]
+    # Remove PKEY if present, ensure AVAILFROM is present
+    visible_headers = [h for h in visible_headers if h != "PKEY"]
+    if "AVAILFROM" not in visible_headers:
+        visible_headers.append("AVAILFROM")
     header_rows = [visible_headers[i:i+n_cols] for i in range(0, len(visible_headers), n_cols)]
     st.markdown("**Enter New Product Details:**")
     required_fields = [barcode_col, framecode_col]
-
-    # Always show MANUFACT and FCOLOUR as text fields when adding barcodes
-    # Find their position in visible_headers - if not present, add them after BARCODE
-    for field, after_field in [("MANUFACT", "BARCODE"), ("FCOLOUR", "MANUFACT")]:
-        if field not in visible_headers:
-            if after_field in visible_headers:
-                idx = visible_headers.index(after_field) + 1
-                visible_headers.insert(idx, field)
-            else:
-                visible_headers.insert(0, field)
 
     for row in header_rows:
         cols = st.columns(len(row), gap="small")
@@ -303,6 +300,11 @@ with st.expander("➕ Add a New Product", expanded=st.session_state["add_product
                     input_values[header] = st.text_input("MANUFACTURER", value=smart_suggestion, key=unique_key)
                 elif header.upper() == "FCOLOUR":
                     input_values[header] = st.text_input("COLOUR", value=smart_suggestion, key=unique_key)
+                elif header.upper() == "FRAMETYPE":
+                    default_frametype = smart_suggestion if smart_suggestion in FRAMETYPE_OPTIONS else FRAMETYPE_OPTIONS[0]
+                    input_values[header] = st.selectbox("FRAME TYPE", FRAMETYPE_OPTIONS, index=FRAMETYPE_OPTIONS.index(default_frametype), key=unique_key)
+                elif header.upper() == "AVAILFROM":
+                    input_values[header] = st.date_input("AVAILABLE FROM", value=datetime.now().date(), key=unique_key)
                 elif header.upper() == "SUPPLIER":
                     input_values[header] = st.text_input(header, value=st.session_state.get("supplier_for_framecode", ""), key=unique_key)
                 elif header.lower() == "model":
@@ -331,9 +333,6 @@ with st.expander("➕ Add a New Product", expanded=st.session_state["add_product
                 elif header.upper() == "TAXPC":
                     default_tax = smart_suggestion if smart_suggestion in TAXPC_OPTIONS else TAXPC_OPTIONS[9]
                     input_values[header] = st.selectbox(header, TAXPC_OPTIONS, index=max(0, TAXPC_OPTIONS.index(default_tax)), key=unique_key)
-                elif header.upper() == "AVAIL FROM":
-                    date_val = datetime.now().date()
-                    input_values[header] = st.date_input(header, value=date_val, key=unique_key)
                 elif header.upper() == "NOTE":
                     input_values[header] = st.text_input(header, value=smart_suggestion, key=unique_key)
                 else:
@@ -359,7 +358,7 @@ with st.expander("➕ Add a New Product", expanded=st.session_state["add_product
                 for col in headers:
                     if col in input_values:
                         val = input_values[col]
-                        if col == "AVAIL FROM" and isinstance(val, (datetime, pd.Timestamp)):
+                        if col == "AVAILFROM" and isinstance(val, (datetime, pd.Timestamp)):
                             val = val.strftime('%Y-%m-%d')
                         if col == "BARCODE":
                             val = clean_barcode(val)
@@ -453,6 +452,9 @@ with st.expander("✏️ Edit or 🗑 Delete Products", expanded=st.session_stat
             edit_values = {}
             n_cols = 3
             visible_headers = [h for h in VISIBLE_FIELDS if h in headers]
+            visible_headers = [h for h in visible_headers if h != "PKEY"]
+            if "AVAILFROM" not in visible_headers:
+                visible_headers.append("AVAILFROM")
             header_rows = [visible_headers[i:i+n_cols] for i in range(0, len(visible_headers), n_cols)]
             st.markdown("**Edit Product Details**")
             required_fields = [barcode_col, framecode_col]
@@ -473,6 +475,18 @@ with st.expander("✏️ Edit or 🗑 Delete Products", expanded=st.session_stat
                         edit_values[header] = st.text_input("MANUFACTURER", value=str(show_value), key=unique_key)
                     elif header.upper() == "FCOLOUR":
                         edit_values[header] = st.text_input("COLOUR", value=str(show_value), key=unique_key)
+                    elif header.upper() == "FRAMETYPE":
+                        default_frametype = str(show_value) if str(show_value) in FRAMETYPE_OPTIONS else FRAMETYPE_OPTIONS[0]
+                        edit_values[header] = st.selectbox("FRAME TYPE", FRAMETYPE_OPTIONS, index=FRAMETYPE_OPTIONS.index(default_frametype), key=unique_key)
+                    elif header.upper() == "AVAILFROM":
+                        try:
+                            if pd.isnull(show_value) or show_value == "":
+                                date_val = datetime.now().date()
+                            else:
+                                date_val = pd.to_datetime(show_value).date()
+                        except Exception:
+                            date_val = datetime.now().date()
+                        edit_values[header] = st.date_input("AVAILABLE FROM", value=date_val, key=unique_key)
                     elif header.upper() == "SUPPLIER":
                         edit_values[header] = st.text_input(header, value=str(show_value), key=unique_key)
                     elif header.lower() == "model":
@@ -501,15 +515,6 @@ with st.expander("✏️ Edit or 🗑 Delete Products", expanded=st.session_stat
                     elif header.upper() == "TAXPC":
                         default_tax = str(show_value) if str(show_value) in TAXPC_OPTIONS else TAXPC_OPTIONS[9]
                         edit_values[header] = st.selectbox(header, TAXPC_OPTIONS, index=max(0, TAXPC_OPTIONS.index(default_tax)), key=unique_key)
-                    elif header.upper() == "AVAIL FROM":
-                        try:
-                            if pd.isnull(show_value) or show_value == "":
-                                date_val = datetime.now().date()
-                            else:
-                                date_val = pd.to_datetime(show_value).date()
-                        except Exception:
-                            date_val = datetime.now().date()
-                        edit_values[header] = st.date_input(header, value=date_val, key=unique_key)
                     elif header.upper() == "NOTE":
                         edit_values[header] = st.text_input(header, value=str(show_value), key=unique_key)
                     else:
@@ -519,8 +524,8 @@ with st.expander("✏️ Edit or 🗑 Delete Products", expanded=st.session_stat
                 submit_edit = col1.form_submit_button("Save Changes")
                 submit_delete = col2.form_submit_button("Delete Product")
                 if submit_edit:
-                    if "AVAIL FROM" in edit_values and isinstance(edit_values["AVAIL FROM"], (datetime, pd.Timestamp)):
-                        edit_values["AVAIL FROM"] = edit_values["AVAIL FROM"].strftime('%Y-%m-%d')
+                    if "AVAILFROM" in edit_values and isinstance(edit_values["AVAILFROM"], (datetime, pd.Timestamp)):
+                        edit_values["AVAILFROM"] = edit_values["AVAILFROM"].strftime('%Y-%m-%d')
                     edit_barcode_cleaned = clean_barcode(edit_values[barcode_col])
                     edit_framecode_cleaned = clean_barcode(edit_values[framecode_col])
                     df_barcodes_cleaned = df[barcode_col].map(clean_barcode)
@@ -535,7 +540,7 @@ with st.expander("✏️ Edit or 🗑 Delete Products", expanded=st.session_stat
                         for h in headers:
                             if h in edit_values:
                                 val = edit_values[h]
-                                if h == "AVAIL FROM" and isinstance(val, (datetime, pd.Timestamp)):
+                                if h == "AVAILFROM" and isinstance(val, (datetime, pd.Timestamp)):
                                     val = val.strftime('%Y-%m-%d')
                                 if h == "BARCODE":
                                     val = clean_barcode(val)
@@ -662,6 +667,8 @@ with st.expander("🔍 Quick Stock Check (Scan Barcode)"):
             model = str(product.get("MODEL", ""))
             manufact = str(product.get("MANUFACT", ""))
             fcolour = str(product.get("FCOLOUR", ""))
+            frametype = str(product.get("FRAMETYPE", ""))
+            availfrom = str(product.get("AVAILFROM", ""))
             size = str(product.get("SIZE", ""))
             st.markdown('<div class="print-label-block">', unsafe_allow_html=True)
             if barcode_img_buffer:
@@ -674,6 +681,8 @@ with st.expander("🔍 Quick Stock Check (Scan Barcode)"):
             st.markdown(f'Model: {model}', unsafe_allow_html=True)
             st.markdown(f'Manufacturer: {manufact}', unsafe_allow_html=True)
             st.markdown(f'Colour: {fcolour}', unsafe_allow_html=True)
+            st.markdown(f'Frame Type: {frametype}', unsafe_allow_html=True)
+            st.markdown(f'Available From: {availfrom}', unsafe_allow_html=True)
             st.markdown(f'Size: {size}', unsafe_allow_html=True)
             st.markdown('</div></div>', unsafe_allow_html=True)
         else:
