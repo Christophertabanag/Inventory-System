@@ -90,26 +90,29 @@ def load_inventory():
             st.stop()
         df = force_all_columns_to_string(df)
         df.rename(columns={"FRAME NO.": "FRAMENUM"}, inplace=True)
-        # Clean barcode column as whole number string
+
+        # Move BARCODE to first column and clean barcodes
         if "BARCODE" in df.columns:
             df["BARCODE"] = df["BARCODE"].map(clean_barcode)
             cols = list(df.columns)
             cols.insert(0, cols.pop(cols.index("BARCODE")))
-            df = df[cols]
+            df = df[cols].copy()
+
         # Clean RRP column
         if "RRP" in df.columns:
             df["RRP"] = df["RRP"].apply(lambda x: str(x).replace("$", "").strip())
-        # Add GSTSTAT column if missing, set all past products to "Inc. GST"
+
+        # Add GSTSTAT column and put after RRP (defragment with .copy())
         if "GSTSTAT" not in df.columns:
-            # Place GSTSTAT beside RRP
+            df["GSTSTAT"] = "Inc. GST"
             cols = list(df.columns)
             if "RRP" in cols:
+                cols.remove("GSTSTAT")
                 rrp_index = cols.index("RRP")
-                cols.insert(rrp_index + 1, "GSTSTAT")
+                cols = cols[:rrp_index+1] + ["GSTSTAT"] + cols[rrp_index+1:]
+                df = df[cols].copy()
             else:
-                cols.append("GSTSTAT")
-            df["GSTSTAT"] = "Inc. GST"
-            df = df.reindex(columns=cols)
+                df = df.copy()
         else:
             df["GSTSTAT"] = df["GSTSTAT"].replace('', 'Inc. GST')
         return df
@@ -126,19 +129,19 @@ def load_archive_inventory():
             df["BARCODE"] = df["BARCODE"].map(clean_barcode)
             cols = list(df.columns)
             cols.insert(0, cols.pop(cols.index("BARCODE")))
-            df = df[cols]
+            df = df[cols].copy()
         if "RRP" in df.columns:
             df["RRP"] = df["RRP"].apply(lambda x: str(x).replace("$", "").strip())
-        # GSTSTAT for archive too
         if "GSTSTAT" not in df.columns:
+            df["GSTSTAT"] = "Inc. GST"
             cols = list(df.columns)
             if "RRP" in cols:
+                cols.remove("GSTSTAT")
                 rrp_index = cols.index("RRP")
-                cols.insert(rrp_index + 1, "GSTSTAT")
+                cols = cols[:rrp_index+1] + ["GSTSTAT"] + cols[rrp_index+1:]
+                df = df[cols].copy()
             else:
-                cols.append("GSTSTAT")
-            df["GSTSTAT"] = "Inc. GST"
-            df = df.reindex(columns=cols)
+                df = df.copy()
         else:
             df["GSTSTAT"] = df["GSTSTAT"].replace('', 'Inc. GST')
         return df
@@ -146,9 +149,8 @@ def load_archive_inventory():
         return pd.DataFrame()
 
 def generate_unique_barcode(df):
-    # Always generate and return as whole number string
     while True:
-        barcode_val = str(random.randint(100000, 999999))  # 6 digits
+        barcode_val = str(random.randint(100000, 999999))
         barcode_val_clean = clean_barcode(barcode_val)
         if "BARCODE" not in df.columns or barcode_val_clean not in df["BARCODE"].map(clean_barcode).values:
             return barcode_val_clean
