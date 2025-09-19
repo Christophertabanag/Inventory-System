@@ -123,7 +123,7 @@ def load_archive_inventory():
 def generate_unique_barcode(df):
     # Always generate and return as whole number string
     while True:
-        barcode_val = str(random.randint(100000, 999999))  # 6 digits
+        barcode_val = f"{random.randint(1, 15000):05d}"  # 5 digits
         barcode_val_clean = clean_barcode(barcode_val)
         if "BARCODE" not in df.columns or barcode_val_clean not in df["BARCODE"].map(clean_barcode).values:
             return barcode_val_clean
