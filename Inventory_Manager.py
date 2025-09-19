@@ -121,7 +121,7 @@ def load_archive_inventory():
         return pd.DataFrame()
 
 def generate_unique_barcode(df):
-    # Always generate and return as whole number string
+    # Always generate and return as 5 digit zero-padded string in range 00001-15000
     while True:
         barcode_val = f"{random.randint(1, 15000):05d}"  # 5 digits
         barcode_val_clean = clean_barcode(barcode_val)
@@ -166,7 +166,7 @@ def get_smart_default(header, df):
     if header in df.columns and not df[header].dropna().empty:
         most_common = df[header].dropna().mode()
         if not most_common.empty: return str(most_common.iloc[0])
-    if header == "MANUFACTURER":
+    if header == "MANUFACT":
         return "Ray-Ban"
     if header == "SUPPLIER":
         return "Default Supplier"
@@ -186,15 +186,17 @@ def get_smart_default(header, df):
         return "PRACTICE OWNED"
     if header == "NOTE":
         return ""
+    if header == "FCOLOUR":
+        return ""
     return ""
 
 VISIBLE_FIELDS = [
-    "BARCODE", "LOCATION", "FRAMENUM", "PKEY", "MANUFACTURER", "MODEL", "SIZE",
-    "F COLOUR", "F GROUP", "SUPPLIER", "QUANTITY", "F TYPE", "TEMPLE", "DEPTH", "DIAG",
+    "BARCODE", "LOCATION", "FRAMENUM", "PKEY", "MANUFACT", "MODEL", "SIZE",
+    "FCOLOUR", "F GROUP", "SUPPLIER", "QUANTITY", "F TYPE", "TEMPLE", "DEPTH", "DIAG",
     "BASECURVE", "RRP", "EXCOSTPR", "COST PRICE", "TAXPC", "FRSTATUS", "AVAIL FROM", "NOTE"
 ]
 FREE_TEXT_FIELDS = [
-    "PKEY", "F COLOUR", "F GROUP", "BASECURVE"
+    "PKEY", "FCOLOUR", "F GROUP", "BASECURVE"
 ]
 F_TYPE_OPTIONS = ["MEN", "WOMEN", "KIDS", "UNISEX"]
 FRSTATUS_OPTIONS = ["CONSIGNMENT OWNED", "PRACTICE OWNED"]
@@ -268,6 +270,17 @@ with st.expander("➕ Add a New Product", expanded=st.session_state["add_product
     header_rows = [visible_headers[i:i+n_cols] for i in range(0, len(visible_headers), n_cols)]
     st.markdown("**Enter New Product Details:**")
     required_fields = [barcode_col, framecode_col]
+
+    # Always show MANUFACT and FCOLOUR as text fields when adding barcodes
+    # Find their position in visible_headers - if not present, add them after BARCODE
+    for field, after_field in [("MANUFACT", "BARCODE"), ("FCOLOUR", "MANUFACT")]:
+        if field not in visible_headers:
+            if after_field in visible_headers:
+                idx = visible_headers.index(after_field) + 1
+                visible_headers.insert(idx, field)
+            else:
+                visible_headers.insert(0, field)
+
     for row in header_rows:
         cols = st.columns(len(row), gap="small")
         for idx, header in enumerate(row):
@@ -286,6 +299,10 @@ with st.expander("➕ Add a New Product", expanded=st.session_state["add_product
                     input_values[header] = st.text_input(
                         label, value=st.session_state["framecode"], key=unique_key, help="Unique product frame code"
                     )
+                elif header.upper() == "MANUFACT":
+                    input_values[header] = st.text_input("MANUFACTURER", value=smart_suggestion, key=unique_key)
+                elif header.upper() == "FCOLOUR":
+                    input_values[header] = st.text_input("COLOUR", value=smart_suggestion, key=unique_key)
                 elif header.upper() == "SUPPLIER":
                     input_values[header] = st.text_input(header, value=st.session_state.get("supplier_for_framecode", ""), key=unique_key)
                 elif header.lower() == "model":
@@ -294,8 +311,6 @@ with st.expander("➕ Add a New Product", expanded=st.session_state["add_product
                     default_size = smart_suggestion if smart_suggestion in SIZE_OPTIONS else SIZE_OPTIONS[0]
                     input_values[header] = st.selectbox(header, SIZE_OPTIONS, index=SIZE_OPTIONS.index(default_size), key=unique_key)
                 elif header.upper() in FREE_TEXT_FIELDS:
-                    input_values[header] = st.text_input(header, value=smart_suggestion, key=unique_key)
-                elif header.upper() == "MANUFACTURER":
                     input_values[header] = st.text_input(header, value=smart_suggestion, key=unique_key)
                 elif header.upper() == "QUANTITY":
                     try:
@@ -454,6 +469,10 @@ with st.expander("✏️ Edit or 🗑 Delete Products", expanded=st.session_stat
                         label = f"{header} <span class='required-label'>*</span>" if header in required_fields else header
                     if header == barcode_col or header == framecode_col:
                         edit_values[header] = st.text_input(label, value=str(show_value), key=unique_key)
+                    elif header.upper() == "MANUFACT":
+                        edit_values[header] = st.text_input("MANUFACTURER", value=str(show_value), key=unique_key)
+                    elif header.upper() == "FCOLOUR":
+                        edit_values[header] = st.text_input("COLOUR", value=str(show_value), key=unique_key)
                     elif header.upper() == "SUPPLIER":
                         edit_values[header] = st.text_input(header, value=str(show_value), key=unique_key)
                     elif header.lower() == "model":
@@ -462,8 +481,6 @@ with st.expander("✏️ Edit or 🗑 Delete Products", expanded=st.session_stat
                         default_size = str(show_value) if str(show_value) in SIZE_OPTIONS else SIZE_OPTIONS[0]
                         edit_values[header] = st.selectbox(header, SIZE_OPTIONS, index=SIZE_OPTIONS.index(default_size), key=unique_key)
                     elif header.upper() in FREE_TEXT_FIELDS:
-                        edit_values[header] = st.text_input(header, value=str(show_value), key=unique_key)
-                    elif header.upper() == "MANUFACTURER":
                         edit_values[header] = st.text_input(header, value=str(show_value), key=unique_key)
                     elif header.upper() == "QUANTITY":
                         try:
@@ -643,8 +660,8 @@ with st.expander("🔍 Quick Stock Check (Scan Barcode)"):
             rrp_display = format_rrp(rrp)
             framecode = str(product.get("FRAMENUM", ""))
             model = str(product.get("MODEL", ""))
-            manufact = str(product.get("MANUFACTURER", ""))
-            fcolour = str(product.get("F COLOUR", ""))
+            manufact = str(product.get("MANUFACT", ""))
+            fcolour = str(product.get("FCOLOUR", ""))
             size = str(product.get("SIZE", ""))
             st.markdown('<div class="print-label-block">', unsafe_allow_html=True)
             if barcode_img_buffer:
@@ -656,7 +673,7 @@ with st.expander("🔍 Quick Stock Check (Scan Barcode)"):
             st.markdown(f'Framecode: {framecode}', unsafe_allow_html=True)
             st.markdown(f'Model: {model}', unsafe_allow_html=True)
             st.markdown(f'Manufacturer: {manufact}', unsafe_allow_html=True)
-            st.markdown(f'Frame Colour: {fcolour}', unsafe_allow_html=True)
+            st.markdown(f'Colour: {fcolour}', unsafe_allow_html=True)
             st.markdown(f'Size: {size}', unsafe_allow_html=True)
             st.markdown('</div></div>', unsafe_allow_html=True)
         else:
