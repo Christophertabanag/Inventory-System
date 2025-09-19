@@ -99,6 +99,19 @@ def load_inventory():
         # Clean RRP column
         if "RRP" in df.columns:
             df["RRP"] = df["RRP"].apply(lambda x: str(x).replace("$", "").strip())
+        # Add GSTSTAT column if missing, set all past products to "Inc. GST"
+        if "GSTSTAT" not in df.columns:
+            # Place GSTSTAT beside RRP
+            cols = list(df.columns)
+            if "RRP" in cols:
+                rrp_index = cols.index("RRP")
+                cols.insert(rrp_index + 1, "GSTSTAT")
+            else:
+                cols.append("GSTSTAT")
+            df["GSTSTAT"] = "Inc. GST"
+            df = df.reindex(columns=cols)
+        else:
+            df["GSTSTAT"] = df["GSTSTAT"].replace('', 'Inc. GST')
         return df
     else:
         st.error(f"Inventory file '{INVENTORY_FILE}' not found.")
@@ -116,6 +129,18 @@ def load_archive_inventory():
             df = df[cols]
         if "RRP" in df.columns:
             df["RRP"] = df["RRP"].apply(lambda x: str(x).replace("$", "").strip())
+        # GSTSTAT for archive too
+        if "GSTSTAT" not in df.columns:
+            cols = list(df.columns)
+            if "RRP" in cols:
+                rrp_index = cols.index("RRP")
+                cols.insert(rrp_index + 1, "GSTSTAT")
+            else:
+                cols.append("GSTSTAT")
+            df["GSTSTAT"] = "Inc. GST"
+            df = df.reindex(columns=cols)
+        else:
+            df["GSTSTAT"] = df["GSTSTAT"].replace('', 'Inc. GST')
         return df
     else:
         return pd.DataFrame()
@@ -186,12 +211,14 @@ def get_smart_default(header, df):
         return "PRACTICE OWNED"
     if header == "NOTE":
         return ""
+    if header == "GSTSTAT":
+        return "Inc. GST"
     return ""
 
 VISIBLE_FIELDS = [
     "BARCODE", "LOCATION", "FRAMENUM", "PKEY", "MANUFACTURER", "MODEL", "SIZE",
     "F COLOUR", "F GROUP", "SUPPLIER", "QUANTITY", "F TYPE", "TEMPLE", "DEPTH", "DIAG",
-    "BASECURVE", "RRP", "EXCOSTPR", "COST PRICE", "TAXPC", "FRSTATUS", "AVAIL FROM", "NOTE"
+    "BASECURVE", "RRP", "GSTSTAT", "EXCOSTPR", "COST PRICE", "TAXPC", "FRSTATUS", "AVAIL FROM", "NOTE"
 ]
 FREE_TEXT_FIELDS = [
     "PKEY", "F COLOUR", "F GROUP", "BASECURVE"
@@ -265,6 +292,11 @@ with st.expander("➕ Add a New Product", expanded=st.session_state["add_product
     input_values = {}
     n_cols = 3
     visible_headers = [h for h in VISIBLE_FIELDS if h in headers]
+    # Put GSTSTAT beside NOTE in the UI for adding
+    if "GSTSTAT" in visible_headers and "NOTE" in visible_headers:
+        visible_headers.remove("GSTSTAT")
+        note_index = visible_headers.index("NOTE")
+        visible_headers.insert(note_index + 1, "GSTSTAT")
     header_rows = [visible_headers[i:i+n_cols] for i in range(0, len(visible_headers), n_cols)]
     st.markdown("**Enter New Product Details:**")
     required_fields = [barcode_col, framecode_col]
@@ -313,6 +345,8 @@ with st.expander("➕ Add a New Product", expanded=st.session_state["add_product
                     input_values[header] = st.text_input(header, value=smart_suggestion, key=unique_key)
                 elif header.upper() == "RRP":
                     input_values[header] = st.text_input(header, value=format_rrp(smart_suggestion), key=unique_key)
+                elif header.upper() == "GSTSTAT":
+                    input_values[header] = st.text_input(header, value=smart_suggestion or "Inc. GST", key=unique_key)
                 elif header.upper() == "TAXPC":
                     default_tax = smart_suggestion if smart_suggestion in TAXPC_OPTIONS else TAXPC_OPTIONS[9]
                     input_values[header] = st.selectbox(header, TAXPC_OPTIONS, index=max(0, TAXPC_OPTIONS.index(default_tax)), key=unique_key)
@@ -350,6 +384,8 @@ with st.expander("➕ Add a New Product", expanded=st.session_state["add_product
                             val = clean_barcode(val)
                         if col == "RRP":
                             val = format_rrp(val)
+                        if col == "GSTSTAT":
+                            val = val or "Inc. GST"
                         new_row[col] = val
                     else:
                         new_row[col] = ""
@@ -361,6 +397,8 @@ with st.expander("➕ Add a New Product", expanded=st.session_state["add_product
                 df[barcode_col] = df[barcode_col].map(clean_barcode)
                 if "RRP" in df.columns:
                     df["RRP"] = df["RRP"].apply(format_rrp)
+                if "GSTSTAT" in df.columns:
+                    df["GSTSTAT"] = df["GSTSTAT"].replace('', 'Inc. GST')
                 if INVENTORY_FILE.lower().endswith('.xlsx'):
                     df.to_excel(INVENTORY_FILE, index=False)
                 else:
@@ -377,12 +415,15 @@ if "RRP" in df_display.columns:
     df_display["RRP"] = df_display["RRP"].apply(format_rrp).astype(str)
 if "BARCODE" in df_display.columns:
     df_display["BARCODE"] = df_display["BARCODE"].map(clean_barcode)
+if "GSTSTAT" in df_display.columns:
+    df_display["GSTSTAT"] = df_display["GSTSTAT"].replace('', 'Inc. GST')
 st.dataframe(clean_nans(df_display), width='stretch')
 
 download_date_str = datetime.now().strftime("%Y-%m-%d")
 custom_download_name = f"fil-{selected_file.split('.')[0]}_{download_date_str}-downloaded"
 excel_buffer = io.BytesIO()
-df_display["RRP"] = df_display["RRP"].astype(str)   # Ensure string type!
+df_display["RRP"] = df_display["RRP"].astype(str)
+df_display["GSTSTAT"] = df_display["GSTSTAT"].astype(str)
 clean_nans(df_display).to_excel(excel_buffer, index=False)
 excel_buffer.seek(0)
 st.download_button(
@@ -405,6 +446,8 @@ if not archive_df.empty:
         archive_df_display["RRP"] = archive_df_display["RRP"].apply(format_rrp).astype(str)
     if "BARCODE" in archive_df_display.columns:
         archive_df_display["BARCODE"] = archive_df_display["BARCODE"].map(clean_barcode)
+    if "GSTSTAT" in archive_df_display.columns:
+        archive_df_display["GSTSTAT"] = archive_df_display["GSTSTAT"].replace('', 'Inc. GST')
     st.dataframe(clean_nans(archive_df_display), width='stretch')
     archive_download_name = f"fil-archive_{download_date_str}-downloaded"
     arch_col1, arch_col2 = st.columns([1, 1])
@@ -438,6 +481,11 @@ with st.expander("✏️ Edit or 🗑 Delete Products", expanded=st.session_stat
             edit_values = {}
             n_cols = 3
             visible_headers = [h for h in VISIBLE_FIELDS if h in headers]
+            # Put GSTSTAT beside NOTE in the UI for editing
+            if "GSTSTAT" in visible_headers and "NOTE" in visible_headers:
+                visible_headers.remove("GSTSTAT")
+                note_index = visible_headers.index("NOTE")
+                visible_headers.insert(note_index + 1, "GSTSTAT")
             header_rows = [visible_headers[i:i+n_cols] for i in range(0, len(visible_headers), n_cols)]
             st.markdown("**Edit Product Details**")
             required_fields = [barcode_col, framecode_col]
@@ -481,6 +529,8 @@ with st.expander("✏️ Edit or 🗑 Delete Products", expanded=st.session_stat
                         edit_values[header] = st.text_input(header, value=str(show_value), key=unique_key)
                     elif header.upper() == "RRP":
                         edit_values[header] = st.text_input(header, value=format_rrp(show_value), key=unique_key)
+                    elif header.upper() == "GSTSTAT":
+                        edit_values[header] = st.text_input(header, value=str(show_value) or "Inc. GST", key=unique_key)
                     elif header.upper() == "TAXPC":
                         default_tax = str(show_value) if str(show_value) in TAXPC_OPTIONS else TAXPC_OPTIONS[9]
                         edit_values[header] = st.selectbox(header, TAXPC_OPTIONS, index=max(0, TAXPC_OPTIONS.index(default_tax)), key=unique_key)
@@ -524,6 +574,8 @@ with st.expander("✏️ Edit or 🗑 Delete Products", expanded=st.session_stat
                                     val = clean_barcode(val)
                                 if h == "RRP":
                                     val = format_rrp(val)
+                                if h == "GSTSTAT":
+                                    val = val or "Inc. GST"
                                 df.at[selected_row, h] = val
                             else:
                                 df.at[selected_row, h] = ""
@@ -534,6 +586,8 @@ with st.expander("✏️ Edit or 🗑 Delete Products", expanded=st.session_stat
                         df[barcode_col] = df[barcode_col].map(clean_barcode)
                         if "RRP" in df.columns:
                             df["RRP"] = df["RRP"].apply(format_rrp)
+                        if "GSTSTAT" in df.columns:
+                            df["GSTSTAT"] = df["GSTSTAT"].replace('', 'Inc. GST')
                         if INVENTORY_FILE.lower().endswith('.xlsx'):
                             df.to_excel(INVENTORY_FILE, index=False)
                         else:
@@ -558,6 +612,8 @@ if st.session_state.get("pending_delete_index") is not None:
             df[barcode_col] = df[barcode_col].map(clean_barcode)
             if "RRP" in df.columns:
                 df["RRP"] = df["RRP"].apply(format_rrp)
+            if "GSTSTAT" in df.columns:
+                df["GSTSTAT"] = df["GSTSTAT"].replace('', 'Inc. GST')
             if INVENTORY_FILE.lower().endswith('.xlsx'):
                 df.to_excel(INVENTORY_FILE, index=False)
             else:
@@ -635,6 +691,8 @@ with st.expander("🔍 Quick Stock Check (Scan Barcode)"):
                 matches_display["RRP"] = matches_display["RRP"].apply(format_rrp)
             if "BARCODE" in matches_display.columns:
                 matches_display["BARCODE"] = matches_display["BARCODE"].map(clean_barcode)
+            if "GSTSTAT" in matches_display.columns:
+                matches_display["GSTSTAT"] = matches_display["GSTSTAT"].replace('', 'Inc. GST')
             st.dataframe(clean_nans(matches_display), width='stretch')
             product = matches.iloc[0]
             barcode_value = clean_barcode(product[barcode_col])
@@ -646,12 +704,13 @@ with st.expander("🔍 Quick Stock Check (Scan Barcode)"):
             manufact = str(product.get("MANUFACTURER", ""))
             fcolour = str(product.get("F COLOUR", ""))
             size = str(product.get("SIZE", ""))
+            gststat = str(product.get("GSTSTAT", "Inc. GST"))
             st.markdown('<div class="print-label-block">', unsafe_allow_html=True)
             if barcode_img_buffer:
                 st.image(barcode_img_buffer, width=220)
             st.markdown(f'<div class="print-label-barcode-num">{barcode_value}</div>', unsafe_allow_html=True)
             st.markdown(f'<div class="print-label-price">{rrp_display}</div>', unsafe_allow_html=True)
-            st.markdown(f'<div class="print-label-gst">Inc GST</div>', unsafe_allow_html=True)
+            st.markdown(f'<div class="print-label-gst">{gststat}</div>', unsafe_allow_html=True)
             st.markdown('<div class="print-label-details">', unsafe_allow_html=True)
             st.markdown(f'Framecode: {framecode}', unsafe_allow_html=True)
             st.markdown(f'Model: {model}', unsafe_allow_html=True)
