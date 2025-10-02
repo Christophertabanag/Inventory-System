@@ -1,6 +1,5 @@
 import streamlit as st
 import pandas as pd
-import numpy as np
 import os
 from datetime import datetime
 import random
@@ -34,8 +33,7 @@ st.markdown("""
     """, unsafe_allow_html=True)
 
 def clean_nans(df):
-    df = df.replace([np.nan, pd.NA, 'nan'], '', regex=True)
-    return df
+    return df.replace([pd.NA, 'nan'], '', regex=True)
 
 def force_all_columns_to_string(df):
     for col in df.columns:
@@ -283,7 +281,7 @@ with st.expander("➕ Add a New Product", expanded=st.session_state["add_product
                 smart_suggestion = get_smart_default(header, df)
                 if header == barcode_col:
                     input_values[header] = st.text_input(
-                        label, value=st.session_state.get("barcode_textinput", ""), key="barcode_textinput", help="Unique product barcode"
+                        label, key="barcode_textinput", help="Unique product barcode"
                     )
                 elif header == framecode_col:
                     input_values[header] = st.text_input(
@@ -336,7 +334,7 @@ with st.expander("➕ Add a New Product", expanded=st.session_state["add_product
         if submit:
             required_fields = [barcode_col, framecode_col]
             missing = [field for field in required_fields if field in visible_headers and not input_values.get(field)]
-            barcode_cleaned = clean_barcode(input_values.get(barcode_col, ""))
+            barcode_cleaned = clean_barcode(st.session_state["barcode_textinput"])
             framecode_cleaned = clean_barcode(input_values.get(framecode_col, ""))
             df_barcodes_cleaned = df[barcode_col].map(clean_barcode)
             df_framecodes_cleaned = df[framecode_col].map(clean_barcode)
@@ -349,17 +347,17 @@ with st.expander("➕ Add a New Product", expanded=st.session_state["add_product
             else:
                 new_row = {}
                 for col in headers:
-                    if col in input_values:
+                    if col == barcode_col:
+                        val = clean_barcode(st.session_state["barcode_textinput"])
+                    elif col in input_values:
                         val = input_values[col]
                         if col == "AVAILFROM" and isinstance(val, (datetime, pd.Timestamp)):
                             val = val.strftime('%Y-%m-%d')
-                        if col == "BARCODE":
-                            val = clean_barcode(val)
                         if col == "RRP":
                             val = format_rrp(val)
-                        new_row[col] = val
                     else:
-                        new_row[col] = ""
+                        val = ""
+                    new_row[col] = val
                 if "Timestamp" in df.columns:
                     new_row["Timestamp"] = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
                 df = pd.concat([df, pd.DataFrame([new_row])], ignore_index=True)
@@ -378,7 +376,6 @@ with st.expander("➕ Add a New Product", expanded=st.session_state["add_product
                 st.session_state["framecode"] = ""
                 st.session_state["add_product_expanded"] = False
                 st.rerun()
-# ... rest of your script remains unchanged ...
 
 st.markdown('### Current Inventory')
 df_display = df.copy()
