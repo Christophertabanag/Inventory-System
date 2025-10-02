@@ -281,11 +281,11 @@ with st.expander("➕ Add a New Product", expanded=st.session_state["add_product
                 smart_suggestion = get_smart_default(header, df)
                 if header == barcode_col:
                     input_values[header] = st.text_input(
-                        label, key="barcode_textinput", help="Unique product barcode"
+                        "BARCODE", key="barcode_textinput", help="Unique product barcode"
                     )
                 elif header == framecode_col:
                     input_values[header] = st.text_input(
-                        label, value=st.session_state["framecode"], key=unique_key, help="Unique product frame code"
+                        "FRAMENUM", value=st.session_state["framecode"], key=unique_key, help="Unique product frame code"
                     )
                 elif header.upper() == "MANUFACT":
                     input_values[header] = st.text_input("MANUFACTURER", value=smart_suggestion, key=unique_key)
