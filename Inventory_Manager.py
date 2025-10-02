@@ -206,6 +206,8 @@ if "add_product_expanded" not in st.session_state:
     st.session_state["add_product_expanded"] = False
 if "barcode" not in st.session_state:
     st.session_state["barcode"] = ""
+if "barcode_textinput" not in st.session_state:
+    st.session_state["barcode_textinput"] = ""
 if "framecode" not in st.session_state:
     st.session_state["framecode"] = ""
 if "edit_product_index" not in st.session_state:
@@ -241,6 +243,7 @@ btn_col1, btn_col2 = st.columns(2)
 with btn_col1:
     if st.button("Generate Barcode", key="generate_barcode_btn"):
         st.session_state["barcode"] = generate_unique_barcode(df)
+        st.session_state["barcode_textinput"] = st.session_state["barcode"]
         st.session_state["add_product_expanded"] = True
 with btn_col2:
     supplier_val = st.text_input(
@@ -278,13 +281,9 @@ with st.expander("➕ Add a New Product", expanded=st.session_state["add_product
             with cols[idx]:
                 unique_key = f"textinput_{header}"
                 smart_suggestion = get_smart_default(header, df)
-                if header in [barcode_col, framecode_col]:
-                    label = header
-                else:
-                    label = f"{header} <span class='required-label'>*</span>" if header in required_fields else header
                 if header == barcode_col:
                     input_values[header] = st.text_input(
-                        label, value=st.session_state["barcode"], key=unique_key, help="Unique product barcode"
+                        label, value=st.session_state.get("barcode_textinput", ""), key="barcode_textinput", help="Unique product barcode"
                     )
                 elif header == framecode_col:
                     input_values[header] = st.text_input(
@@ -375,9 +374,11 @@ with st.expander("➕ Add a New Product", expanded=st.session_state["add_product
                     df.to_csv(INVENTORY_FILE, index=False)
                 st.success(f"✅ Product added successfully!")
                 st.session_state["barcode"] = ""
+                st.session_state["barcode_textinput"] = ""
                 st.session_state["framecode"] = ""
                 st.session_state["add_product_expanded"] = False
                 st.rerun()
+# ... rest of your script remains unchanged ...
 
 st.markdown('### Current Inventory')
 df_display = df.copy()
